@@ -101,44 +101,63 @@ export default function Index() {
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       style={styles.container}
     >
-      <View style={styles.content}>
-        <Text style={styles.title}>Time Logger</Text>
-        
-        <TextInput
-          style={styles.input}
-          placeholder="What am I doing?"
-          placeholderTextColor="#999999"
-          value={activityName}
-          onChangeText={setActivityName}
-          editable={!isRunning}
-        />
+      <ScrollView 
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+      >
+        <View style={styles.content}>
+          <Text style={styles.title}>Time Logger</Text>
+          
+          <TextInput
+            style={styles.input}
+            placeholder="What am I doing?"
+            placeholderTextColor="#999999"
+            value={activityName}
+            onChangeText={setActivityName}
+            editable={!isRunning}
+          />
 
-        <View style={styles.buttonContainer}>
-          <TouchableOpacity
-            style={[
-              styles.button,
-              styles.startButton,
-              (!activityName.trim() || isRunning) && styles.buttonDisabled
-            ]}
-            onPress={handleStart}
-            disabled={!activityName.trim() || isRunning}
-          >
-            <Text style={styles.buttonText}>Start</Text>
-          </TouchableOpacity>
+          <View style={styles.buttonContainer}>
+            <TouchableOpacity
+              style={[
+                styles.button,
+                styles.startButton,
+                (!activityName.trim() || isRunning) && styles.buttonDisabled
+              ]}
+              onPress={handleStart}
+              disabled={!activityName.trim() || isRunning}
+            >
+              <Text style={styles.buttonText}>Start</Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[
-              styles.button,
-              styles.stopButton,
-              !isRunning && styles.buttonDisabled
-            ]}
-            onPress={handleStop}
-            disabled={!isRunning}
-          >
-            <Text style={styles.buttonText}>Stop</Text>
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.button,
+                styles.stopButton,
+                !isRunning && styles.buttonDisabled
+              ]}
+              onPress={handleStop}
+              disabled={!isRunning}
+            >
+              <Text style={styles.buttonText}>Stop</Text>
+            </TouchableOpacity>
+          </View>
         </View>
-      </View>
+
+        {/* Today's Activities List */}
+        {todayEntries.length > 0 && (
+          <View style={styles.listContainer}>
+            <Text style={styles.listTitle}>Today's Activities</Text>
+            
+            {todayEntries.map((entry, index) => (
+              <View key={index} style={styles.entryItem}>
+                <Text style={styles.entryName}>{entry.activityName}</Text>
+                <Text style={styles.entryDuration}>{entry.duration}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
