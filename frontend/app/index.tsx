@@ -46,6 +46,106 @@ export default function Index() {
     loadTodayEntries();
   }, []);
 
+  // Handle editing an activity
+  const handleEdit = (index: number) => {
+    setEditingIndex(index);
+    setEditedName(todayEntries[index].activityName);
+  };
+
+  // Save edited activity
+  const handleSaveEdit = async () => {
+    if (!editedName.trim() || editingIndex === null) {
+      return;
+    }
+
+    try {
+      // Get all entries
+      const existingData = await AsyncStorage.getItem("timeEntries");
+      if (existingData) {
+        const allEntries: TimeEntry[] = JSON.parse(existingData);
+        
+        // Find the entry to update by matching all properties
+        const entryToUpdate = todayEntries[editingIndex];
+        const globalIndex = allEntries.findIndex(
+          (e) =>
+            e.startTime === entryToUpdate.startTime &&
+            e.endTime === entryToUpdate.endTime &&
+            e.durationMs === entryToUpdate.durationMs
+        );
+
+        if (globalIndex !== -1) {
+          // Update the activity name
+          allEntries[globalIndex].activityName = editedName.trim();
+          
+          // Save back to storage
+          await AsyncStorage.setItem("timeEntries", JSON.stringify(allEntries));
+          
+          // Reload entries and exit edit mode
+          await loadTodayEntries();
+          setEditingIndex(null);
+          setEditedName("");
+        }
+      }
+    } catch (error) {
+      console.error("Error saving edit:", error);
+    }
+  };
+
+  // Cancel editing
+  const handleCancelEdit = () => {
+    setEditingIndex(null);
+    setEditedName("");
+  };
+
+  // Handle deleting an activity
+  const handleDelete = (index: number) => {
+    Alert.alert(
+      "Delete Activity",
+      "Are you sure you want to delete this activity?",
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              // Get all entries
+              const existingData = await AsyncStorage.getItem("timeEntries");
+              if (existingData) {
+                const allEntries: TimeEntry[] = JSON.parse(existingData);
+                
+                // Find the entry to delete
+                const entryToDelete = todayEntries[index];
+                const globalIndex = allEntries.findIndex(
+                  (e) =>
+                    e.startTime === entryToDelete.startTime &&
+                    e.endTime === entryToDelete.endTime &&
+                    e.durationMs === entryToDelete.durationMs
+                );
+
+                if (globalIndex !== -1) {
+                  // Remove the entry
+                  allEntries.splice(globalIndex, 1);
+                  
+                  // Save back to storage
+                  await AsyncStorage.setItem("timeEntries", JSON.stringify(allEntries));
+                  
+                  // Reload entries
+                  await loadTodayEntries();
+                }
+              }
+            } catch (error) {
+              console.error("Error deleting entry:", error);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const handleStart = () => {
     if (!activityName.trim()) {
       return;
