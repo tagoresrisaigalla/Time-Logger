@@ -16,6 +16,34 @@ export default function Index() {
   const [isRunning, setIsRunning] = useState(false);
   const [todayEntries, setTodayEntries] = useState<TimeEntry[]>([]);
 
+  // Function to load today's entries
+  const loadTodayEntries = async () => {
+    try {
+      const existingData = await AsyncStorage.getItem("timeEntries");
+      if (existingData) {
+        const allEntries: TimeEntry[] = JSON.parse(existingData);
+        
+        // Get today's date string (YYYY-MM-DD)
+        const today = new Date().toISOString().split('T')[0];
+        
+        // Filter entries from today only
+        const todayOnly = allEntries.filter((entry) => {
+          const entryDate = new Date(entry.startTime).toISOString().split('T')[0];
+          return entryDate === today;
+        });
+        
+        setTodayEntries(todayOnly);
+      }
+    } catch (error) {
+      console.error("Error loading entries:", error);
+    }
+  };
+
+  // Load entries on mount
+  useEffect(() => {
+    loadTodayEntries();
+  }, []);
+
   const handleStart = () => {
     if (!activityName.trim()) {
       return;
