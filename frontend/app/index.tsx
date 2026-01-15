@@ -24,16 +24,16 @@ export default function Index() {
       const existingData = await AsyncStorage.getItem("timeEntries");
       if (existingData) {
         const allEntries: TimeEntry[] = JSON.parse(existingData);
-        
+
         // Get today's date string (YYYY-MM-DD)
         const today = new Date().toISOString().split('T')[0];
-        
+
         // Filter entries from today only
         const todayOnly = allEntries.filter((entry) => {
           const entryDate = new Date(entry.startTime).toISOString().split('T')[0];
           return entryDate === today;
         });
-        
+
         setTodayEntries(todayOnly);
       }
     } catch (error) {
@@ -45,6 +45,48 @@ export default function Index() {
   useEffect(() => {
     loadTodayEntries();
   }, []);
+
+  // Calculate daily summary
+  const calculateDailySummary = () => {
+    if (todayEntries.length === 0) {
+      return null;
+    }
+
+    // Calculate total time in milliseconds
+    const totalMs = todayEntries.reduce((sum, entry) => sum + entry.durationMs, 0);
+
+    // Group by activity name
+    const activityGroups: { [key: string]: number } = {};
+    todayEntries.forEach((entry) => {
+      if (activityGroups[entry.activityName]) {
+        activityGroups[entry.activityName] += entry.durationMs;
+      } else {
+        activityGroups[entry.activityName] = entry.durationMs;
+      }
+    });
+
+    // Format duration helper
+    const formatDuration = (ms: number): string => {
+      const hours = Math.floor(ms / 3600000);
+      const minutes = Math.floor((ms % 3600000) / 60000);
+
+      if (hours > 0 && minutes > 0) {
+        return `${hours}h ${minutes}m`;
+      } else if (hours > 0) {
+        return `${hours}h`;
+      } else {
+        return `${minutes}m`;
+      }
+    };
+
+    return {
+      totalTime: formatDuration(totalMs),
+      activities: Object.entries(activityGroups).map(([name, ms]) => ({
+        name,
+        duration: formatDuration(ms),
+      })),
+    };
+  };
 
   // Handle editing an activity
   const handleEdit = (index: number) => {
@@ -63,7 +105,7 @@ export default function Index() {
       const existingData = await AsyncStorage.getItem("timeEntries");
       if (existingData) {
         const allEntries: TimeEntry[] = JSON.parse(existingData);
-        
+
         // Find the entry to update by matching all properties
         const entryToUpdate = todayEntries[editingIndex];
         const globalIndex = allEntries.findIndex(
@@ -76,10 +118,10 @@ export default function Index() {
         if (globalIndex !== -1) {
           // Update the activity name
           allEntries[globalIndex].activityName = editedName.trim();
-          
+
           // Save back to storage
           await AsyncStorage.setItem("timeEntries", JSON.stringify(allEntries));
-          
+
           // Reload entries and exit edit mode
           await loadTodayEntries();
           setEditingIndex(null);
@@ -116,7 +158,7 @@ export default function Index() {
               const existingData = await AsyncStorage.getItem("timeEntries");
               if (existingData) {
                 const allEntries: TimeEntry[] = JSON.parse(existingData);
-                
+
                 // Find the entry to delete
                 const entryToDelete = todayEntries[index];
                 const globalIndex = allEntries.findIndex(
@@ -129,10 +171,10 @@ export default function Index() {
                 if (globalIndex !== -1) {
                   // Remove the entry
                   allEntries.splice(globalIndex, 1);
-                  
+
                   // Save back to storage
                   await AsyncStorage.setItem("timeEntries", JSON.stringify(allEntries));
-                  
+
                   // Reload entries
                   await loadTodayEntries();
                 }
@@ -150,7 +192,7 @@ export default function Index() {
     if (!activityName.trim()) {
       return;
     }
-    
+
     const now = Date.now();
     setStartTime(now);
     setIsRunning(true);
@@ -179,18 +221,18 @@ export default function Index() {
       // Get existing entries
       const existingData = await AsyncStorage.getItem("timeEntries");
       const entries = existingData ? JSON.parse(existingData) : [];
-      
+
       // Add new entry
       entries.push(entry);
-      
+
       // Save back to storage
       await AsyncStorage.setItem("timeEntries", JSON.stringify(entries));
-      
+
       // Reset state
       setActivityName("");
       setStartTime(null);
       setIsRunning(false);
-      
+
       // Reload today's entries
       await loadTodayEntries();
     } catch (error) {
@@ -199,17 +241,17 @@ export default function Index() {
   };
 
   return (
-    <KeyboardAvoidingView 
+    <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       style={styles.container}
     >
-      <ScrollView 
+      <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
       >
         <View style={styles.content}>
           <Text style={styles.title}>Time Logger</Text>
-          
+
           <TextInput
             style={styles.input}
             placeholder="What am I doing?"
@@ -250,7 +292,7 @@ export default function Index() {
         {todayEntries.length > 0 && (
           <View style={styles.listContainer}>
             <Text style={styles.listTitle}>Today's Activities</Text>
-            
+
             {todayEntries.map((entry, index) => (
               <View key={index} style={styles.entryItem}>
                 {editingIndex === index ? (
@@ -300,6 +342,27 @@ export default function Index() {
             ))}
           </View>
         )}
+
+        {/* Daily Summary Section */}
+        {todayEntries.length > 0 && (() => {
+          const summary = calculateDailySummary();
+          return summary ? (
+            <View style={styles.summaryContainer}>
+              <Text style={styles.summaryTitle}>Daily Summary</Text>
+
+              <Text style={styles.summaryTotalText}>
+                Total Time Today: {summary.totalTime}
+              </Text>
+
+              {summary.activities.map((activity, index) => (
+                <View key={index} style={styles.summaryActivityRow}>
+                  <Text style={styles.summaryActivityName}>{activity.name}</Text>
+                  <Text style={styles.summaryActivityDuration}>{activity.duration}</Text>
+                </View>
+              ))}
+            </View>
+          ) : null;
+        })()}
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -455,5 +518,42 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 14,
     fontWeight: "600",
+  },
+  summaryContainer: {
+    paddingHorizontal: 24,
+    paddingTop: 32,
+    paddingBottom: 48,
+  },
+  summaryTitle: {
+    fontSize: 20,
+    fontWeight: "600",
+    color: "#000000",
+    marginBottom: 16,
+  },
+  summaryTotalText: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#2196F3",
+    marginBottom: 20,
+  },
+  summaryActivityRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: "#F5F5F5",
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  summaryActivityName: {
+    fontSize: 16,
+    color: "#000000",
+    flex: 1,
+  },
+  summaryActivityDuration: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#666666",
   },
 });
