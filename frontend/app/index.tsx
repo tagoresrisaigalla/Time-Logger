@@ -1,6 +1,8 @@
 import { Text, View, StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Keyboard, ScrollView, Alert } from "react-native";
 import { useState, useEffect } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useRouter } from "expo-router";
+import { useTimer } from "../context/TimerContext";
 
 
 interface TimeEntry {
@@ -12,9 +14,8 @@ interface TimeEntry {
 }
 
 export default function Index() {
-  const [activityName, setActivityName] = useState("");
-  const [startTime, setStartTime] = useState<number | null>(null);
-  const [isRunning, setIsRunning] = useState(false);
+  const router = useRouter();
+  const { activityName, setActivityName, startTime, setStartTime, isRunning, setIsRunning } = useTimer();
   const [todayEntries, setTodayEntries] = useState<TimeEntry[]>([]);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editedName, setEditedName] = useState("");
@@ -87,6 +88,55 @@ export default function Index() {
         duration: formatDuration(ms),
       })),
     };
+  };
+
+  const calculateWeeklySummary = async (weekStartDate: string) => {
+    try {
+      const existingData = await AsyncStorage.getItem("timeEntries");
+      if (!existingData) {
+        return null;
+      }
+
+      const allEntries: TimeEntry[] = JSON.parse(existingData);
+      const startDate = new Date(weekStartDate);
+      const endDate = new Date(startDate);
+      endDate.setDate(endDate.getDate() + 7);
+
+      const weekEntries = allEntries.filter((entry) => {
+        const entryDate = new Date(entry.startTime);
+        return entryDate >= startDate && entryDate < endDate;
+      });
+
+      if (weekEntries.length === 0) {
+        return null;
+      }
+
+      const totalMs = weekEntries.reduce((sum, entry) => sum + entry.durationMs, 0);
+      const avgPerDayMs = totalMs / 7;
+
+      const categoryGroups: { [key: string]: number } = {};
+      weekEntries.forEach((entry) => {
+        if (categoryGroups[entry.activityName]) {
+          categoryGroups[entry.activityName] += entry.durationMs;
+        } else {
+          categoryGroups[entry.activityName] = entry.durationMs;
+        }
+      });
+
+      const topCategories = Object.entries(categoryGroups)
+        .sort(([, a], [, b]) => b - a)
+        .slice(0, 3)
+        .map(([name, ms]) => ({ name, durationMs: ms }));
+
+      return {
+        totalMs,
+        avgPerDayMs,
+        topCategories,
+      };
+    } catch (error) {
+      console.error("Error calculating weekly summary:", error);
+      return null;
+    }
   };
 
   // Handle editing an activity
@@ -289,6 +339,13 @@ export default function Index() {
               <Text style={styles.buttonText}>Stop</Text>
             </TouchableOpacity>
           </View>
+
+          <TouchableOpacity
+            style={styles.weeklyButton}
+            onPress={() => router.push("/weekly")}
+          >
+            <Text style={styles.weeklyButtonText}>View Weekly Summary</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Today's Activities List */}
@@ -558,5 +615,19 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     color: "#666666",
+  },
+  weeklyButton: {
+    backgroundColor: "#2196F3",
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    alignItems: "center",
+    marginTop: 20,
+    width: "100%",
+  },
+  weeklyButtonText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "600",
   },
 });
