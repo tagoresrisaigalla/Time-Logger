@@ -167,11 +167,18 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#FFFFFF",
   },
-  content: {
+  scrollView: {
     flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+  },
+  content: {
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 24,
+    paddingTop: 60,
+    paddingBottom: 32,
   },
   title: {
     fontSize: 32,
@@ -218,5 +225,37 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 18,
     fontWeight: "600",
+  },
+  listContainer: {
+    paddingHorizontal: 24,
+    paddingTop: 32,
+    paddingBottom: 48,
+  },
+  listTitle: {
+    fontSize: 20,
+    fontWeight: "600",
+    color: "#000000",
+    marginBottom: 16,
+  },
+  entryItem: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    backgroundColor: "#F5F5F5",
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  entryName: {
+    fontSize: 16,
+    color: "#000000",
+    flex: 1,
+    marginRight: 16,
+  },
+  entryDuration: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#666666",
   },
 });
