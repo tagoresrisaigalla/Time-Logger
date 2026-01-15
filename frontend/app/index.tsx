@@ -253,8 +253,49 @@ export default function Index() {
             
             {todayEntries.map((entry, index) => (
               <View key={index} style={styles.entryItem}>
-                <Text style={styles.entryName}>{entry.activityName}</Text>
-                <Text style={styles.entryDuration}>{entry.duration}</Text>
+                {editingIndex === index ? (
+                  // Edit Mode
+                  <View style={styles.editContainer}>
+                    <TextInput
+                      style={styles.editInput}
+                      value={editedName}
+                      onChangeText={setEditedName}
+                      placeholder="Activity name"
+                      placeholderTextColor="#999999"
+                    />
+                    <View style={styles.editButtonContainer}>
+                      <TouchableOpacity
+                        style={[styles.editButton, styles.saveButton]}
+                        onPress={handleSaveEdit}
+                      >
+                        <Text style={styles.editButtonText}>Save</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.editButton, styles.cancelButton]}
+                        onPress={handleCancelEdit}
+                      >
+                        <Text style={styles.editButtonText}>Cancel</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ) : (
+                  // View Mode
+                  <>
+                    <TouchableOpacity
+                      style={styles.entryContent}
+                      onPress={() => handleEdit(index)}
+                    >
+                      <Text style={styles.entryName}>{entry.activityName}</Text>
+                      <Text style={styles.entryDuration}>{entry.duration}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.deleteButton}
+                      onPress={() => handleDelete(index)}
+                    >
+                      <Text style={styles.deleteButtonText}>Delete</Text>
+                    </TouchableOpacity>
+                  </>
+                )}
               </View>
             ))}
           </View>
