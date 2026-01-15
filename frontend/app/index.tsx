@@ -1,4 +1,4 @@
-import { Text, View, StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Keyboard, ScrollView } from "react-native";
+import { Text, View, StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Keyboard, ScrollView, Alert } from "react-native";
 import { useState, useEffect } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -15,6 +15,8 @@ export default function Index() {
   const [startTime, setStartTime] = useState<number | null>(null);
   const [isRunning, setIsRunning] = useState(false);
   const [todayEntries, setTodayEntries] = useState<TimeEntry[]>([]);
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [editedName, setEditedName] = useState("");
 
   // Function to load today's entries
   const loadTodayEntries = async () => {
