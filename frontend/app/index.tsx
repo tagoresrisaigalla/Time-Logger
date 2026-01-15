@@ -1,10 +1,105 @@
-import { Text, View, StyleSheet } from "react-native";
+import { Text, View, StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Keyboard } from "react-native";
+import { useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function Index() {
+  const [activityName, setActivityName] = useState("");
+  const [startTime, setStartTime] = useState<number | null>(null);
+  const [isRunning, setIsRunning] = useState(false);
+
+  const handleStart = () => {
+    if (!activityName.trim()) {
+      return;
+    }
+    
+    const now = Date.now();
+    setStartTime(now);
+    setIsRunning(true);
+    Keyboard.dismiss();
+  };
+
+  const handleStop = async () => {
+    if (!startTime) {
+      return;
+    }
+
+    const endTime = Date.now();
+    const durationMs = endTime - startTime;
+    const durationMinutes = Math.floor(durationMs / 60000);
+    const durationSeconds = Math.floor((durationMs % 60000) / 1000);
+
+    const entry = {
+      activityName: activityName.trim(),
+      startTime: new Date(startTime).toISOString(),
+      endTime: new Date(endTime).toISOString(),
+      duration: `${durationMinutes}m ${durationSeconds}s`,
+      durationMs: durationMs,
+    };
+
+    try {
+      // Get existing entries
+      const existingData = await AsyncStorage.getItem("timeEntries");
+      const entries = existingData ? JSON.parse(existingData) : [];
+      
+      // Add new entry
+      entries.push(entry);
+      
+      // Save back to storage
+      await AsyncStorage.setItem("timeEntries", JSON.stringify(entries));
+      
+      // Reset state
+      setActivityName("");
+      setStartTime(null);
+      setIsRunning(false);
+    } catch (error) {
+      console.error("Error saving entry:", error);
+    }
+  };
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Time Logger</Text>
-    </View>
+    <KeyboardAvoidingView 
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      style={styles.container}
+    >
+      <View style={styles.content}>
+        <Text style={styles.title}>Time Logger</Text>
+        
+        <TextInput
+          style={styles.input}
+          placeholder="What am I doing?"
+          placeholderTextColor="#999999"
+          value={activityName}
+          onChangeText={setActivityName}
+          editable={!isRunning}
+        />
+
+        <View style={styles.buttonContainer}>
+          <TouchableOpacity
+            style={[
+              styles.button,
+              styles.startButton,
+              (!activityName.trim() || isRunning) && styles.buttonDisabled
+            ]}
+            onPress={handleStart}
+            disabled={!activityName.trim() || isRunning}
+          >
+            <Text style={styles.buttonText}>Start</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.button,
+              styles.stopButton,
+              !isRunning && styles.buttonDisabled
+            ]}
+            onPress={handleStop}
+            disabled={!isRunning}
+          >
+            <Text style={styles.buttonText}>Stop</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -12,13 +107,57 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#FFFFFF",
+  },
+  content: {
+    flex: 1,
     alignItems: "center",
     justifyContent: "center",
+    paddingHorizontal: 24,
   },
   title: {
     fontSize: 32,
     fontWeight: "600",
     color: "#000000",
     letterSpacing: 0.5,
+    marginBottom: 48,
+  },
+  input: {
+    width: "100%",
+    height: 56,
+    borderWidth: 2,
+    borderColor: "#E0E0E0",
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    fontSize: 16,
+    color: "#000000",
+    backgroundColor: "#FFFFFF",
+    marginBottom: 32,
+  },
+  buttonContainer: {
+    flexDirection: "row",
+    gap: 16,
+    width: "100%",
+  },
+  button: {
+    flex: 1,
+    height: 56,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  startButton: {
+    backgroundColor: "#4CAF50",
+  },
+  stopButton: {
+    backgroundColor: "#F44336",
+  },
+  buttonDisabled: {
+    backgroundColor: "#CCCCCC",
+    opacity: 0.6,
+  },
+  buttonText: {
+    color: "#FFFFFF",
+    fontSize: 18,
+    fontWeight: "600",
   },
 });
