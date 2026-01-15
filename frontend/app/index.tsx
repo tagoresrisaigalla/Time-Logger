@@ -2,6 +2,7 @@ import { Text, View, StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingVi
 import { useState, useEffect } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
+
 interface TimeEntry {
   activityName: string;
   startTime: string;
@@ -193,11 +194,12 @@ export default function Index() {
       return;
     }
 
+    Keyboard.dismiss();
     const now = Date.now();
     setStartTime(now);
     setIsRunning(true);
-    Keyboard.dismiss();
   };
+
 
   const handleStop = async () => {
     if (!startTime) {
@@ -248,6 +250,7 @@ export default function Index() {
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
       >
         <View style={styles.content}>
           <Text style={styles.title}>Time Logger</Text>
