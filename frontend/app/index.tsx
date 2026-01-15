@@ -390,6 +390,13 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginBottom: 12,
   },
+  entryContent: {
+    flex: 1,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginRight: 12,
+  },
   entryName: {
     fontSize: 16,
     color: "#000000",
@@ -400,5 +407,53 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     color: "#666666",
+  },
+  deleteButton: {
+    backgroundColor: "#F44336",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 6,
+  },
+  deleteButtonText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  editContainer: {
+    flex: 1,
+  },
+  editInput: {
+    width: "100%",
+    height: 44,
+    borderWidth: 1,
+    borderColor: "#2196F3",
+    borderRadius: 6,
+    paddingHorizontal: 12,
+    fontSize: 16,
+    color: "#000000",
+    backgroundColor: "#FFFFFF",
+    marginBottom: 12,
+  },
+  editButtonContainer: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  editButton: {
+    flex: 1,
+    height: 36,
+    borderRadius: 6,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  saveButton: {
+    backgroundColor: "#4CAF50",
+  },
+  cancelButton: {
+    backgroundColor: "#9E9E9E",
+  },
+  editButtonText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "600",
   },
 });
