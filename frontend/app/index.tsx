@@ -88,6 +88,9 @@ export default function Index() {
       setActivityName("");
       setStartTime(null);
       setIsRunning(false);
+      
+      // Reload today's entries
+      await loadTodayEntries();
     } catch (error) {
       console.error("Error saving entry:", error);
     }
