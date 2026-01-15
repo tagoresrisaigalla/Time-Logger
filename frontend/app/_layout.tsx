@@ -7,6 +7,7 @@ export default function RootLayout() {
             <Stack screenOptions={{ headerShown: false }}>
                 <Stack.Screen name="index" />
                 <Stack.Screen name="weekly" />
+                <Stack.Screen name="monthly" />
             </Stack>
         </TimerProvider>
     );

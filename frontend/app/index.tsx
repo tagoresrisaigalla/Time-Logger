@@ -139,6 +139,69 @@ export default function Index() {
     }
   };
 
+  const calculateMonthlySummary = async (monthIdentifier: string) => {
+    try {
+      const existingData = await AsyncStorage.getItem("timeEntries");
+      if (!existingData) {
+        return null;
+      }
+
+      const allEntries: TimeEntry[] = JSON.parse(existingData);
+      const [year, month] = monthIdentifier.split('-');
+
+      const monthEntries = allEntries.filter((entry) => {
+        const entryDate = new Date(entry.startTime);
+        const entryYear = entryDate.getFullYear().toString();
+        const entryMonth = (entryDate.getMonth() + 1).toString().padStart(2, '0');
+        return entryYear === year && entryMonth === month;
+      });
+
+      if (monthEntries.length === 0) {
+        return null;
+      }
+
+      const totalMs = monthEntries.reduce((sum, entry) => sum + entry.durationMs, 0);
+
+      const activeDaysSet = new Set<string>();
+      monthEntries.forEach((entry) => {
+        const entryDate = new Date(entry.startTime).toISOString().split('T')[0];
+        activeDaysSet.add(entryDate);
+      });
+      const activeDays = activeDaysSet.size;
+      const avgPerActiveDayMs = activeDays > 0 ? totalMs / activeDays : 0;
+
+      const categoryGroups: { [key: string]: number } = {};
+      monthEntries.forEach((entry) => {
+        if (categoryGroups[entry.activityName]) {
+          categoryGroups[entry.activityName] += entry.durationMs;
+        } else {
+          categoryGroups[entry.activityName] = entry.durationMs;
+        }
+      });
+
+      const topCategories = Object.entries(categoryGroups)
+        .sort(([, a], [, b]) => b - a)
+        .slice(0, 5)
+        .map(([name, ms]) => ({ name, durationMs: ms }));
+
+      const categoryStats = Object.entries(categoryGroups).map(([name, ms]) => ({
+        name,
+        durationMs: ms,
+      }));
+
+      return {
+        totalMs,
+        activeDays,
+        avgPerActiveDayMs,
+        topCategories,
+        categoryStats,
+      };
+    } catch (error) {
+      console.error("Error calculating monthly summary:", error);
+      return null;
+    }
+  };
+
   // Handle editing an activity
   const handleEdit = (index: number) => {
     setEditingIndex(index);
@@ -345,6 +408,13 @@ export default function Index() {
             onPress={() => router.push("/weekly")}
           >
             <Text style={styles.weeklyButtonText}>View Weekly Summary</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.monthlyButton}
+            onPress={() => router.push("/monthly")}
+          >
+            <Text style={styles.monthlyButtonText}>View Monthly Summary</Text>
           </TouchableOpacity>
         </View>
 
@@ -626,6 +696,20 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   weeklyButtonText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  monthlyButton: {
+    backgroundColor: "#FF9800",
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    alignItems: "center",
+    marginTop: 12,
+    width: "100%",
+  },
+  monthlyButtonText: {
     color: "#FFFFFF",
     fontSize: 15,
     fontWeight: "600",
