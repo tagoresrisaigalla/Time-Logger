@@ -1,11 +1,20 @@
-import { Text, View, StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Keyboard } from "react-native";
-import { useState } from "react";
+import { Text, View, StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Keyboard, ScrollView } from "react-native";
+import { useState, useEffect } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+
+interface TimeEntry {
+  activityName: string;
+  startTime: string;
+  endTime: string;
+  duration: string;
+  durationMs: number;
+}
 
 export default function Index() {
   const [activityName, setActivityName] = useState("");
   const [startTime, setStartTime] = useState<number | null>(null);
   const [isRunning, setIsRunning] = useState(false);
+  const [todayEntries, setTodayEntries] = useState<TimeEntry[]>([]);
 
   const handleStart = () => {
     if (!activityName.trim()) {
