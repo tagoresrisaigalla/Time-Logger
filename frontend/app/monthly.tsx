@@ -2,6 +2,7 @@ import { Text, View, StyleSheet, TouchableOpacity, ScrollView } from "react-nati
 import { useState, useEffect } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
+import Footer from "../components/Footer";
 
 interface TimeEntry {
     activityName: string;
@@ -199,100 +200,98 @@ export default function Monthly() {
     };
 
     return (
-        <ScrollView style={styles.container}>
-            <View style={styles.content}>
-                <Text style={styles.title}>Monthly Summary</Text>
+        <>
+            <ScrollView style={styles.container}>
+                <View style={styles.content}>
+                    <Text style={styles.title}>Monthly Summary</Text>
 
-                <View style={styles.monthNavigation}>
-                    <TouchableOpacity
-                        style={styles.navButton}
-                        onPress={navigateToPreviousMonth}
-                    >
-                        <Text style={styles.navButtonText}>← Previous</Text>
-                    </TouchableOpacity>
+                    <View style={styles.monthNavigation}>
+                        <TouchableOpacity
+                            style={styles.navButton}
+                            onPress={navigateToPreviousMonth}
+                        >
+                            <Text style={styles.navButtonText}>← Previous</Text>
+                        </TouchableOpacity>
 
-                    <Text style={styles.monthLabel}>
-                        {monthIdentifier && formatMonthLabel(monthIdentifier)}
-                    </Text>
-
-                    <TouchableOpacity
-                        style={styles.navButton}
-                        onPress={navigateToNextMonth}
-                    >
-                        <Text style={styles.navButtonText}>Next →</Text>
-                    </TouchableOpacity>
-                </View>
-
-                <View style={styles.summarySection}>
-                    <Text style={styles.sectionTitle}>Month Statistics</Text>
-
-                    <View style={styles.statRow}>
-                        <Text style={styles.statLabel}>Total Time Logged:</Text>
-                        <Text style={styles.statValue}>
-                            {summary ? formatDuration(summary.totalMs) : "0m"}
+                        <Text style={styles.monthLabel}>
+                            {monthIdentifier && formatMonthLabel(monthIdentifier)}
                         </Text>
+
+                        <TouchableOpacity
+                            style={styles.navButton}
+                            onPress={navigateToNextMonth}
+                        >
+                            <Text style={styles.navButtonText}>Next →</Text>
+                        </TouchableOpacity>
                     </View>
 
-                    <View style={styles.statRow}>
-                        <Text style={styles.statLabel}>Active Days:</Text>
-                        <Text style={styles.statValue}>
-                            {summary ? summary.activeDays : 0}
-                        </Text>
-                    </View>
+                    <View style={styles.summarySection}>
+                        <Text style={styles.sectionTitle}>Month Statistics</Text>
 
-                    <View style={styles.statRow}>
-                        <Text style={styles.statLabel}>Average Per Active Day:</Text>
-                        <Text style={styles.statValue}>
-                            {summary ? formatDuration(summary.avgPerActiveDayMs) : "0m"}
-                        </Text>
-                    </View>
-                </View>
-
-                <View style={styles.summarySection}>
-                    <Text style={styles.sectionTitle}>Top 5 Categories</Text>
-
-                    {summary && summary.topCategories.length > 0 ? (
-                        summary.topCategories.map((category, index) => (
-                            <View key={index} style={styles.categoryRow}>
-                                <Text style={styles.categoryName}>{category.name}</Text>
-                                <Text style={styles.categoryDuration}>
-                                    {formatDuration(category.durationMs)}
-                                </Text>
-                            </View>
-                        ))
-                    ) : (
-                        <Text style={styles.noDataText}>No data for this month</Text>
-                    )}
-                </View>
-
-                <View style={styles.summarySection}>
-                    <Text style={styles.sectionTitle}>Month Trends</Text>
-
-                    <View style={styles.trendRow}>
-                        <Text style={styles.trendLabel}>Total Time:</Text>
-                        <Text style={styles.trendValue}>
-                            {getTrendIndicator()}
-                        </Text>
-                    </View>
-
-                    {summary && summary.topCategories.length > 0 && (
-                        <View style={styles.trendRow}>
-                            <Text style={styles.trendLabel}>Top Category:</Text>
-                            <Text style={styles.trendValue}>
-                                {getTopCategoryComparison()}
+                        <View style={styles.statRow}>
+                            <Text style={styles.statLabel}>Total Time Logged:</Text>
+                            <Text style={styles.statValue}>
+                                {summary ? formatDuration(summary.totalMs) : "0m"}
                             </Text>
                         </View>
-                    )}
-                </View>
 
-                <TouchableOpacity
-                    style={styles.backButton}
-                    onPress={() => router.back()}
-                >
-                    <Text style={styles.backButtonText}>Back to Daily View</Text>
-                </TouchableOpacity>
-            </View>
-        </ScrollView>
+                        <View style={styles.statRow}>
+                            <Text style={styles.statLabel}>Active Days:</Text>
+                            <Text style={styles.statValue}>
+                                {summary ? summary.activeDays : 0}
+                            </Text>
+                        </View>
+
+                        <View style={styles.statRow}>
+                            <Text style={styles.statLabel}>Average Per Active Day:</Text>
+                            <Text style={styles.statValue}>
+                                {summary ? formatDuration(summary.avgPerActiveDayMs) : "0m"}
+                            </Text>
+                        </View>
+                    </View>
+
+                    <View style={styles.summarySection}>
+                        <Text style={styles.sectionTitle}>Top 5 Categories</Text>
+
+                        {summary && summary.topCategories.length > 0 ? (
+                            summary.topCategories.map((category, index) => (
+                                <View key={index} style={styles.categoryRow}>
+                                    <Text style={styles.categoryName}>{category.name}</Text>
+                                    <Text style={styles.categoryDuration}>
+                                        {formatDuration(category.durationMs)}
+                                    </Text>
+                                </View>
+                            ))
+                        ) : (
+                            <Text style={styles.noDataText}>No data for this month</Text>
+                        )}
+                    </View>
+
+                    <View style={styles.summarySection}>
+                        <Text style={styles.sectionTitle}>Month Trends</Text>
+
+                        <View style={styles.trendRow}>
+                            <Text style={styles.trendLabel}>Total Time:</Text>
+                            <Text style={styles.trendValue}>
+                                {getTrendIndicator()}
+                            </Text>
+                        </View>
+
+                        {summary && summary.topCategories.length > 0 && (
+                            <View style={styles.trendRow}>
+                                <Text style={styles.trendLabel}>Top Category:</Text>
+                                <Text style={styles.trendValue}>
+                                    {getTopCategoryComparison()}
+                                </Text>
+                            </View>
+                        )}
+                    </View>
+
+
+                </View>
+            </ScrollView >
+            <Footer />
+        </>
     );
 }
 

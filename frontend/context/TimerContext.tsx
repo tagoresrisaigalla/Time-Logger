@@ -7,6 +7,8 @@ interface TimerContextType {
     setStartTime: (time: number | null) => void;
     isRunning: boolean;
     setIsRunning: (running: boolean) => void;
+    activeActivityId: string | null;
+    setActiveActivityId: (id: string | null) => void;
 }
 
 const TimerContext = createContext<TimerContextType | undefined>(undefined);
@@ -15,6 +17,7 @@ export function TimerProvider({ children }: { children: ReactNode }) {
     const [activityName, setActivityName] = useState("");
     const [startTime, setStartTime] = useState<number | null>(null);
     const [isRunning, setIsRunning] = useState(false);
+    const [activeActivityId, setActiveActivityId] = useState<string | null>(null);
 
     return (
         <TimerContext.Provider
@@ -25,6 +28,8 @@ export function TimerProvider({ children }: { children: ReactNode }) {
                 setStartTime,
                 isRunning,
                 setIsRunning,
+                activeActivityId,
+                setActiveActivityId,
             }}
         >
             {children}

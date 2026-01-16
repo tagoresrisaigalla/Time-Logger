@@ -1,794 +1,374 @@
-import { Text, View, StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Keyboard, ScrollView, Alert } from "react-native";
-import { useState, useEffect } from "react";
+import { Text, View, StyleSheet, FlatList, TextInput, TouchableOpacity } from "react-native";
+import { useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useRouter } from "expo-router";
-import { useTimer } from "../context/TimerContext";
 import { useActivity } from "../context/ActivityContext";
+import { useTimer } from "../context/TimerContext";
+import { useRouter } from "expo-router";
+import Footer from "../components/Footer";
 
+export default function Activities() {
+    const router = useRouter();
+    const { activities, addActivity, renameActivity, deleteActivity } = useActivity();
+    const { isRunning, setIsRunning, setStartTime, setActiveActivityId, setActivityName, activeActivityId, startTime, activityName } = useTimer();
+    const [newActivityName, setNewActivityName] = useState("");
+    const [editingId, setEditingId] = useState<string | null>(null);
+    const [editedName, setEditedName] = useState("");
 
-interface TimeEntry {
-  activityName: string;
-  startTime: string;
-  endTime: string;
-  duration: string;
-  durationMs: number;
-  activityId?: string | null;
-}
-
-export default function Index() {
-  const router = useRouter();
-  const { activityName, setActivityName, startTime, setStartTime, isRunning, setIsRunning } = useTimer();
-  const { activities } = useActivity();
-  const [todayEntries, setTodayEntries] = useState<TimeEntry[]>([]);
-  const [editingIndex, setEditingIndex] = useState<number | null>(null);
-  const [editedName, setEditedName] = useState("");
-  const [selectedActivityId, setSelectedActivityId] = useState<string | null>(null);
-
-  // Function to load today's entries
-  const loadTodayEntries = async () => {
-    try {
-      const existingData = await AsyncStorage.getItem("timeEntries");
-      if (existingData) {
-        const allEntries: TimeEntry[] = JSON.parse(existingData);
-
-        // Get today's date string (YYYY-MM-DD)
-        const today = new Date().toISOString().split('T')[0];
-
-        // Filter entries from today only
-        const todayOnly = allEntries.filter((entry) => {
-          const entryDate = new Date(entry.startTime).toISOString().split('T')[0];
-          return entryDate === today;
-        });
-
-        setTodayEntries(todayOnly);
-      }
-    } catch (error) {
-      console.error("Error loading entries:", error);
-    }
-  };
-
-  // Load entries on mount
-  useEffect(() => {
-    loadTodayEntries();
-  }, []);
-
-  // Calculate daily summary
-  const calculateDailySummary = () => {
-    if (todayEntries.length === 0) {
-      return null;
-    }
-
-    // Calculate total time in milliseconds
-    const totalMs = todayEntries.reduce((sum, entry) => sum + entry.durationMs, 0);
-
-    // Group by activity name
-    const activityGroups: { [key: string]: number } = {};
-    todayEntries.forEach((entry) => {
-      if (activityGroups[entry.activityName]) {
-        activityGroups[entry.activityName] += entry.durationMs;
-      } else {
-        activityGroups[entry.activityName] = entry.durationMs;
-      }
-    });
-
-    // Format duration helper
-    const formatDuration = (ms: number): string => {
-      const hours = Math.floor(ms / 3600000);
-      const minutes = Math.floor((ms % 3600000) / 60000);
-
-      if (hours > 0 && minutes > 0) {
-        return `${hours}h ${minutes}m`;
-      } else if (hours > 0) {
-        return `${hours}h`;
-      } else {
-        return `${minutes}m`;
-      }
+    const handleAddActivity = () => {
+        const trimmedName = newActivityName.trim();
+        if (!trimmedName) {
+            return;
+        }
+        addActivity(trimmedName);
+        setNewActivityName("");
     };
 
-    return {
-      totalTime: formatDuration(totalMs),
-      activities: Object.entries(activityGroups).map(([name, ms]) => ({
-        name,
-        duration: formatDuration(ms),
-      })),
+    const handleEdit = (id: string, currentName: string) => {
+        setEditingId(id);
+        setEditedName(currentName);
     };
-  };
 
-  const calculateWeeklySummary = async (weekStartDate: string) => {
-    try {
-      const existingData = await AsyncStorage.getItem("timeEntries");
-      if (!existingData) {
-        return null;
-      }
-
-      const allEntries: TimeEntry[] = JSON.parse(existingData);
-      const startDate = new Date(weekStartDate);
-      const endDate = new Date(startDate);
-      endDate.setDate(endDate.getDate() + 7);
-
-      const weekEntries = allEntries.filter((entry) => {
-        const entryDate = new Date(entry.startTime);
-        return entryDate >= startDate && entryDate < endDate;
-      });
-
-      if (weekEntries.length === 0) {
-        return null;
-      }
-
-      const totalMs = weekEntries.reduce((sum, entry) => sum + entry.durationMs, 0);
-      const avgPerDayMs = totalMs / 7;
-
-      const categoryGroups: { [key: string]: number } = {};
-      weekEntries.forEach((entry) => {
-        if (categoryGroups[entry.activityName]) {
-          categoryGroups[entry.activityName] += entry.durationMs;
-        } else {
-          categoryGroups[entry.activityName] = entry.durationMs;
+    const handleSaveEdit = () => {
+        const trimmedName = editedName.trim();
+        if (!trimmedName || !editingId) {
+            return;
         }
-      });
+        renameActivity(editingId, trimmedName);
+        setEditingId(null);
+        setEditedName("");
+    };
 
-      const topCategories = Object.entries(categoryGroups)
-        .sort(([, a], [, b]) => b - a)
-        .slice(0, 3)
-        .map(([name, ms]) => ({ name, durationMs: ms }));
+    const handleCancelEdit = () => {
+        setEditingId(null);
+        setEditedName("");
+    };
 
-      return {
-        totalMs,
-        avgPerDayMs,
-        topCategories,
-      };
-    } catch (error) {
-      console.error("Error calculating weekly summary:", error);
-      return null;
-    }
-  };
+    const handlePlayActivity = async (activityId: string, newActivityName: string) => {
+        // If a timer is running, save the log before stopping
+        if (isRunning && startTime && activeActivityId) {
+            const endTime = Date.now();
+            const durationMs = endTime - startTime;
+            const durationMinutes = Math.floor(durationMs / 60000);
+            const durationSeconds = Math.floor((durationMs % 60000) / 1000);
 
-  const calculateMonthlySummary = async (monthIdentifier: string) => {
-    try {
-      const existingData = await AsyncStorage.getItem("timeEntries");
-      if (!existingData) {
-        return null;
-      }
+            const entry = {
+                activityName: activityName,
+                startTime: new Date(startTime).toISOString(),
+                endTime: new Date(endTime).toISOString(),
+                duration: `${durationMinutes}m ${durationSeconds}s`,
+                durationMs: durationMs,
+                activityId: activeActivityId,
+            };
 
-      const allEntries: TimeEntry[] = JSON.parse(existingData);
-      const [year, month] = monthIdentifier.split('-');
-
-      const monthEntries = allEntries.filter((entry) => {
-        const entryDate = new Date(entry.startTime);
-        const entryYear = entryDate.getFullYear().toString();
-        const entryMonth = (entryDate.getMonth() + 1).toString().padStart(2, '0');
-        return entryYear === year && entryMonth === month;
-      });
-
-      if (monthEntries.length === 0) {
-        return null;
-      }
-
-      const totalMs = monthEntries.reduce((sum, entry) => sum + entry.durationMs, 0);
-
-      const activeDaysSet = new Set<string>();
-      monthEntries.forEach((entry) => {
-        const entryDate = new Date(entry.startTime).toISOString().split('T')[0];
-        activeDaysSet.add(entryDate);
-      });
-      const activeDays = activeDaysSet.size;
-      const avgPerActiveDayMs = activeDays > 0 ? totalMs / activeDays : 0;
-
-      const categoryGroups: { [key: string]: number } = {};
-      monthEntries.forEach((entry) => {
-        if (categoryGroups[entry.activityName]) {
-          categoryGroups[entry.activityName] += entry.durationMs;
-        } else {
-          categoryGroups[entry.activityName] = entry.durationMs;
-        }
-      });
-
-      const topCategories = Object.entries(categoryGroups)
-        .sort(([, a], [, b]) => b - a)
-        .slice(0, 5)
-        .map(([name, ms]) => ({ name, durationMs: ms }));
-
-      const categoryStats = Object.entries(categoryGroups).map(([name, ms]) => ({
-        name,
-        durationMs: ms,
-      }));
-
-      return {
-        totalMs,
-        activeDays,
-        avgPerActiveDayMs,
-        topCategories,
-        categoryStats,
-      };
-    } catch (error) {
-      console.error("Error calculating monthly summary:", error);
-      return null;
-    }
-  };
-
-  // Handle editing an activity
-  const handleEdit = (index: number) => {
-    setEditingIndex(index);
-    setEditedName(todayEntries[index].activityName);
-  };
-
-  // Save edited activity
-  const handleSaveEdit = async () => {
-    if (!editedName.trim() || editingIndex === null) {
-      return;
-    }
-
-    try {
-      // Get all entries
-      const existingData = await AsyncStorage.getItem("timeEntries");
-      if (existingData) {
-        const allEntries: TimeEntry[] = JSON.parse(existingData);
-
-        // Find the entry to update by matching all properties
-        const entryToUpdate = todayEntries[editingIndex];
-        const globalIndex = allEntries.findIndex(
-          (e) =>
-            e.startTime === entryToUpdate.startTime &&
-            e.endTime === entryToUpdate.endTime &&
-            e.durationMs === entryToUpdate.durationMs
-        );
-
-        if (globalIndex !== -1) {
-          // Update the activity name
-          allEntries[globalIndex].activityName = editedName.trim();
-
-          // Save back to storage
-          await AsyncStorage.setItem("timeEntries", JSON.stringify(allEntries));
-
-          // Reload entries and exit edit mode
-          await loadTodayEntries();
-          setEditingIndex(null);
-          setEditedName("");
-        }
-      }
-    } catch (error) {
-      console.error("Error saving edit:", error);
-    }
-  };
-
-  // Cancel editing
-  const handleCancelEdit = () => {
-    setEditingIndex(null);
-    setEditedName("");
-  };
-
-  // Handle deleting an activity
-  const handleDelete = (index: number) => {
-    Alert.alert(
-      "Delete Activity",
-      "Are you sure you want to delete this activity?",
-      [
-        {
-          text: "Cancel",
-          style: "cancel",
-        },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
             try {
-              // Get all entries
-              const existingData = await AsyncStorage.getItem("timeEntries");
-              if (existingData) {
-                const allEntries: TimeEntry[] = JSON.parse(existingData);
-
-                // Find the entry to delete
-                const entryToDelete = todayEntries[index];
-                const globalIndex = allEntries.findIndex(
-                  (e) =>
-                    e.startTime === entryToDelete.startTime &&
-                    e.endTime === entryToDelete.endTime &&
-                    e.durationMs === entryToDelete.durationMs
-                );
-
-                if (globalIndex !== -1) {
-                  // Remove the entry
-                  allEntries.splice(globalIndex, 1);
-
-                  // Save back to storage
-                  await AsyncStorage.setItem("timeEntries", JSON.stringify(allEntries));
-
-                  // Reload entries
-                  await loadTodayEntries();
-                }
-              }
+                const existingData = await AsyncStorage.getItem("timeEntries");
+                const entries = existingData ? JSON.parse(existingData) : [];
+                entries.push(entry);
+                await AsyncStorage.setItem("timeEntries", JSON.stringify(entries));
             } catch (error) {
-              console.error("Error deleting entry:", error);
+                console.error("Error saving entry:", error);
             }
-          },
-        },
-      ]
-    );
-  };
+        }
 
-  const handleStart = () => {
-    if (!activityName.trim()) {
-      return;
-    }
-
-    Keyboard.dismiss();
-    const now = Date.now();
-    setStartTime(now);
-    setIsRunning(true);
-    setSelectedActivityId(null);
-  };
-
-
-  const handleStop = async () => {
-    if (!startTime) {
-      return;
-    }
-
-    const endTime = Date.now();
-    const durationMs = endTime - startTime;
-    const durationMinutes = Math.floor(durationMs / 60000);
-    const durationSeconds = Math.floor((durationMs % 60000) / 1000);
-
-    const entry = {
-      activityName: activityName.trim(),
-      startTime: new Date(startTime).toISOString(),
-      endTime: new Date(endTime).toISOString(),
-      duration: `${durationMinutes}m ${durationSeconds}s`,
-      durationMs: durationMs,
-      activityId: selectedActivityId,
+        // Start the new timer
+        const now = Date.now();
+        setStartTime(now);
+        setIsRunning(true);
+        setActiveActivityId(activityId);
+        setActivityName(newActivityName);
     };
 
-    try {
-      // Get existing entries
-      const existingData = await AsyncStorage.getItem("timeEntries");
-      const entries = existingData ? JSON.parse(existingData) : [];
+    const handleStopActivity = async () => {
+        if (!startTime || !activeActivityId) {
+            return;
+        }
 
-      // Add new entry
-      entries.push(entry);
+        const endTime = Date.now();
+        const durationMs = endTime - startTime;
+        const durationMinutes = Math.floor(durationMs / 60000);
+        const durationSeconds = Math.floor((durationMs % 60000) / 1000);
 
-      // Save back to storage
-      await AsyncStorage.setItem("timeEntries", JSON.stringify(entries));
+        const entry = {
+            activityName: activityName,
+            startTime: new Date(startTime).toISOString(),
+            endTime: new Date(endTime).toISOString(),
+            duration: `${durationMinutes}m ${durationSeconds}s`,
+            durationMs: durationMs,
+            activityId: activeActivityId,
+        };
 
-      // Reset state
-      setActivityName("");
-      setStartTime(null);
-      setIsRunning(false);
+        try {
+            const existingData = await AsyncStorage.getItem("timeEntries");
+            const entries = existingData ? JSON.parse(existingData) : [];
+            entries.push(entry);
+            await AsyncStorage.setItem("timeEntries", JSON.stringify(entries));
 
-      // Reload today's entries
-      await loadTodayEntries();
-    } catch (error) {
-      console.error("Error saving entry:", error);
-    }
-  };
+            setActivityName("");
+            setStartTime(null);
+            setIsRunning(false);
+            setActiveActivityId(null);
+        } catch (error) {
+            console.error("Error saving entry:", error);
+        }
+    };
 
-  return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      style={styles.container}
-    >
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-      >
-        <View style={styles.content}>
-          <Text style={styles.title}>Time Logger</Text>
-
-          <View style={styles.activitySelector}>
-            <Text style={styles.selectorLabel}>Select Activity (Optional):</Text>
-            <View style={styles.activityOptions}>
-              <TouchableOpacity
-                style={[
-                  styles.activityOption,
-                  selectedActivityId === null && styles.activityOptionSelected
-                ]}
-                onPress={() => setSelectedActivityId(null)}
-              >
-                <Text style={styles.activityOptionText}>No Activity</Text>
-              </TouchableOpacity>
-              {activities.map((activity) => (
+    if (activities.length === 0) {
+        return (
+            <View style={styles.container}>
+                <TextInput
+                    style={styles.input}
+                    placeholder="Activity name"
+                    placeholderTextColor="#999999"
+                    value={newActivityName}
+                    onChangeText={setNewActivityName}
+                />
                 <TouchableOpacity
-                  key={activity.id}
-                  style={[
-                    styles.activityOption,
-                    selectedActivityId === activity.id && styles.activityOptionSelected
-                  ]}
-                  onPress={() => setSelectedActivityId(activity.id)}
+                    style={[styles.addButton, !newActivityName.trim() && styles.addButtonDisabled]}
+                    onPress={handleAddActivity}
+                    disabled={!newActivityName.trim()}
                 >
-                  <Text style={styles.activityOptionText}>{activity.name}</Text>
+                    <Text style={styles.addButtonText}>Add Activity</Text>
                 </TouchableOpacity>
-              ))}
+                <Text style={styles.emptyText}>No activities yet</Text>
             </View>
-          </View>
+        );
+    }
 
-          <TextInput
-            style={styles.input}
-            placeholder="What am I doing?"
-            placeholderTextColor="#999999"
-            value={activityName}
-            onChangeText={setActivityName}
-            editable={!isRunning}
-          />
-
-          <View style={styles.buttonContainer}>
+    return (
+        <View style={styles.container}>
+            <TextInput
+                style={styles.input}
+                placeholder="Activity name"
+                placeholderTextColor="#999999"
+                value={newActivityName}
+                onChangeText={setNewActivityName}
+            />
             <TouchableOpacity
-              style={[
-                styles.button,
-                styles.startButton,
-                (!activityName.trim() || isRunning) && styles.buttonDisabled
-              ]}
-              onPress={handleStart}
-              disabled={!activityName.trim() || isRunning}
+                style={[styles.addButton, !newActivityName.trim() && styles.addButtonDisabled]}
+                onPress={handleAddActivity}
+                disabled={!newActivityName.trim()}
             >
-              <Text style={styles.buttonText}>Start</Text>
+                <Text style={styles.addButtonText}>Add Activity</Text>
             </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.button,
-                styles.stopButton,
-                !isRunning && styles.buttonDisabled
-              ]}
-              onPress={handleStop}
-              disabled={!isRunning}
-            >
-              <Text style={styles.buttonText}>Stop</Text>
-            </TouchableOpacity>
-          </View>
-
-          <TouchableOpacity
-            style={styles.weeklyButton}
-            onPress={() => router.push("/weekly")}
-          >
-            <Text style={styles.weeklyButtonText}>View Weekly Summary</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.monthlyButton}
-            onPress={() => router.push("/monthly")}
-          >
-            <Text style={styles.monthlyButtonText}>View Monthly Summary</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Today's Activities List */}
-        {todayEntries.length > 0 && (
-          <View style={styles.listContainer}>
-            <Text style={styles.listTitle}>Today's Activities</Text>
-
-            {todayEntries.map((entry, index) => {
-              const resolvedActivityName = entry.activityId
-                ? (activities.find(a => a.id === entry.activityId)?.name || "(Deleted Activity)")
-                : entry.activityId === null
-                  ? "No Activity"
-                  : entry.activityName;
-
-              return (
-                <View key={index} style={styles.entryItem}>
-                  {editingIndex === index ? (
-                    // Edit Mode
-                    <View style={styles.editContainer}>
-                      <TextInput
-                        style={styles.editInput}
-                        value={editedName}
-                        onChangeText={setEditedName}
-                        placeholder="Activity name"
-                        placeholderTextColor="#999999"
-                      />
-                      <View style={styles.editButtonContainer}>
-                        <TouchableOpacity
-                          style={[styles.editButton, styles.saveButton]}
-                          onPress={handleSaveEdit}
-                        >
-                          <Text style={styles.editButtonText}>Save</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={[styles.editButton, styles.cancelButton]}
-                          onPress={handleCancelEdit}
-                        >
-                          <Text style={styles.editButtonText}>Cancel</Text>
-                        </TouchableOpacity>
-                      </View>
+            <FlatList
+                data={activities}
+                keyExtractor={(item) => item.id}
+                renderItem={({ item }) => (
+                    <View style={styles.activityItem}>
+                        {editingId === item.id ? (
+                            <View style={styles.editContainer}>
+                                <TextInput
+                                    style={styles.editInput}
+                                    value={editedName}
+                                    onChangeText={setEditedName}
+                                    placeholder="Activity name"
+                                    placeholderTextColor="#999999"
+                                />
+                                <View style={styles.editButtonContainer}>
+                                    <TouchableOpacity
+                                        style={[styles.editButton, styles.saveButton]}
+                                        onPress={handleSaveEdit}
+                                    >
+                                        <Text style={styles.editButtonText}>Save</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={[styles.editButton, styles.cancelButton]}
+                                        onPress={handleCancelEdit}
+                                    >
+                                        <Text style={styles.editButtonText}>Cancel</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+                        ) : (
+                            <View style={styles.viewContainer}>
+                                <TouchableOpacity
+                                    style={styles.activityNameContainer}
+                                    onPress={() => handleEdit(item.id, item.name)}
+                                >
+                                    <Text style={styles.activityName}>{item.name}</Text>
+                                </TouchableOpacity>
+                                {activeActivityId === item.id ? (
+                                    <TouchableOpacity
+                                        style={styles.stopButton}
+                                        onPress={handleStopActivity}
+                                    >
+                                        <Text style={styles.stopButtonText}>⏹</Text>
+                                    </TouchableOpacity>
+                                ) : (
+                                    <TouchableOpacity
+                                        style={styles.playButton}
+                                        onPress={() => handlePlayActivity(item.id, item.name)}
+                                    >
+                                        <Text style={styles.playButtonText}>▶</Text>
+                                    </TouchableOpacity>
+                                )}
+                                <TouchableOpacity
+                                    style={styles.deleteButton}
+                                    onPress={() => deleteActivity(item.id)}
+                                >
+                                    <Text style={styles.deleteButtonText}>Delete</Text>
+                                </TouchableOpacity>
+                            </View>
+                        )}
                     </View>
-                  ) : (
-                    // View Mode
-                    <>
-                      <TouchableOpacity
-                        style={styles.entryContent}
-                        onPress={() => handleEdit(index)}
-                      >
-                        <View>
-                          <Text style={styles.entryActivityLabel}>{resolvedActivityName}</Text>
-                          <Text style={styles.entryName}>{entry.activityName}</Text>
-                        </View>
-                        <Text style={styles.entryDuration}>{entry.duration}</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.deleteButton}
-                        onPress={() => handleDelete(index)}
-                      >
-                        <Text style={styles.deleteButtonText}>Delete</Text>
-                      </TouchableOpacity>
-                    </>
-                  )}
-                </View>
-              );
-            })}
-          </View>
-        )}
+                )}
+            />
 
-        {/* Daily Summary Section */}
-        {todayEntries.length > 0 && (() => {
-          const summary = calculateDailySummary();
-          return summary ? (
-            <View style={styles.summaryContainer}>
-              <Text style={styles.summaryTitle}>Daily Summary</Text>
-
-              <Text style={styles.summaryTotalText}>
-                Total Time Today: {summary.totalTime}
-              </Text>
-
-              {summary.activities.map((activity, index) => (
-                <View key={index} style={styles.summaryActivityRow}>
-                  <Text style={styles.summaryActivityName}>{activity.name}</Text>
-                  <Text style={styles.summaryActivityDuration}>{activity.duration}</Text>
-                </View>
-              ))}
-            </View>
-          ) : null;
-        })()}
-      </ScrollView>
-    </KeyboardAvoidingView>
-  );
+            <Footer />
+        </View>
+    );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#FFFFFF",
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
-  },
-  content: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 24,
-    paddingTop: 60,
-    paddingBottom: 32,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: "600",
-    color: "#000000",
-    letterSpacing: 0.5,
-    marginBottom: 48,
-  },
-  input: {
-    width: "100%",
-    height: 56,
-    borderWidth: 2,
-    borderColor: "#E0E0E0",
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    fontSize: 16,
-    color: "#000000",
-    backgroundColor: "#FFFFFF",
-    marginBottom: 32,
-  },
-  buttonContainer: {
-    flexDirection: "row",
-    gap: 16,
-    width: "100%",
-  },
-  button: {
-    flex: 1,
-    height: 56,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  startButton: {
-    backgroundColor: "#4CAF50",
-  },
-  stopButton: {
-    backgroundColor: "#F44336",
-  },
-  buttonDisabled: {
-    backgroundColor: "#CCCCCC",
-    opacity: 0.6,
-  },
-  buttonText: {
-    color: "#FFFFFF",
-    fontSize: 18,
-    fontWeight: "600",
-  },
-  listContainer: {
-    paddingHorizontal: 24,
-    paddingTop: 32,
-    paddingBottom: 48,
-  },
-  listTitle: {
-    fontSize: 20,
-    fontWeight: "600",
-    color: "#000000",
-    marginBottom: 16,
-  },
-  entryItem: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    backgroundColor: "#F5F5F5",
-    borderRadius: 8,
-    marginBottom: 12,
-  },
-  entryContent: {
-    flex: 1,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginRight: 12,
-  },
-  entryName: {
-    fontSize: 16,
-    color: "#000000",
-    flex: 1,
-    marginRight: 16,
-  },
-  entryActivityLabel: {
-    fontSize: 12,
-    color: "#666666",
-    marginBottom: 4,
-  },
-  entryDuration: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#666666",
-  },
-  deleteButton: {
-    backgroundColor: "#F44336",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 6,
-  },
-  deleteButtonText: {
-    color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  editContainer: {
-    flex: 1,
-  },
-  editInput: {
-    width: "100%",
-    height: 44,
-    borderWidth: 1,
-    borderColor: "#2196F3",
-    borderRadius: 6,
-    paddingHorizontal: 12,
-    fontSize: 16,
-    color: "#000000",
-    backgroundColor: "#FFFFFF",
-    marginBottom: 12,
-  },
-  editButtonContainer: {
-    flexDirection: "row",
-    gap: 8,
-  },
-  editButton: {
-    flex: 1,
-    height: 36,
-    borderRadius: 6,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  saveButton: {
-    backgroundColor: "#4CAF50",
-  },
-  cancelButton: {
-    backgroundColor: "#9E9E9E",
-  },
-  editButtonText: {
-    color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  summaryContainer: {
-    paddingHorizontal: 24,
-    paddingTop: 32,
-    paddingBottom: 48,
-  },
-  summaryTitle: {
-    fontSize: 20,
-    fontWeight: "600",
-    color: "#000000",
-    marginBottom: 16,
-  },
-  summaryTotalText: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#2196F3",
-    marginBottom: 20,
-  },
-  summaryActivityRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    backgroundColor: "#F5F5F5",
-    borderRadius: 8,
-    marginBottom: 8,
-  },
-  summaryActivityName: {
-    fontSize: 16,
-    color: "#000000",
-    flex: 1,
-  },
-  summaryActivityDuration: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#666666",
-  },
-  weeklyButton: {
-    backgroundColor: "#2196F3",
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    alignItems: "center",
-    marginTop: 20,
-    width: "100%",
-  },
-  weeklyButtonText: {
-    color: "#FFFFFF",
-    fontSize: 15,
-    fontWeight: "600",
-  },
-  monthlyButton: {
-    backgroundColor: "#FF9800",
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    alignItems: "center",
-    marginTop: 12,
-    width: "100%",
-  },
-  monthlyButtonText: {
-    color: "#FFFFFF",
-    fontSize: 15,
-    fontWeight: "600",
-  },
-  activitySelector: {
-    width: "100%",
-    marginBottom: 24,
-  },
-  selectorLabel: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#000000",
-    marginBottom: 12,
-  },
-  activityOptions: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  activityOption: {
-    backgroundColor: "#E0E0E0",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  activityOptionSelected: {
-    backgroundColor: "#4CAF50",
-  },
-  activityOptionText: {
-    fontSize: 14,
-    color: "#000000",
-  },
+    container: {
+        flex: 1,
+        backgroundColor: "#FFFFFF",
+        paddingHorizontal: 24,
+        paddingTop: 60,
+    },
+    input: {
+        width: "100%",
+        height: 56,
+        borderWidth: 2,
+        borderColor: "#E0E0E0",
+        borderRadius: 12,
+        paddingHorizontal: 16,
+        fontSize: 16,
+        color: "#000000",
+        backgroundColor: "#FFFFFF",
+        marginBottom: 16,
+    },
+    addButton: {
+        width: "100%",
+        height: 56,
+        borderRadius: 12,
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: "#4CAF50",
+        marginBottom: 32,
+    },
+    addButtonDisabled: {
+        backgroundColor: "#CCCCCC",
+        opacity: 0.6,
+    },
+    addButtonText: {
+        color: "#FFFFFF",
+        fontSize: 18,
+        fontWeight: "600",
+    },
+    emptyText: {
+        fontSize: 16,
+        color: "#999999",
+        textAlign: "center",
+        marginTop: 40,
+    },
+    activityItem: {
+        paddingVertical: 16,
+        paddingHorizontal: 16,
+        backgroundColor: "#F5F5F5",
+        borderRadius: 8,
+        marginBottom: 12,
+    },
+    activityName: {
+        fontSize: 16,
+        color: "#000000",
+    },
+    editContainer: {
+        flex: 1,
+    },
+    editInput: {
+        width: "100%",
+        height: 44,
+        borderWidth: 1,
+        borderColor: "#2196F3",
+        borderRadius: 6,
+        paddingHorizontal: 12,
+        fontSize: 16,
+        color: "#000000",
+        backgroundColor: "#FFFFFF",
+        marginBottom: 12,
+    },
+    editButtonContainer: {
+        flexDirection: "row",
+        gap: 8,
+    },
+    editButton: {
+        flex: 1,
+        height: 36,
+        borderRadius: 6,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    saveButton: {
+        backgroundColor: "#4CAF50",
+    },
+    cancelButton: {
+        backgroundColor: "#9E9E9E",
+    },
+    editButtonText: {
+        color: "#FFFFFF",
+        fontSize: 14,
+        fontWeight: "600",
+    },
+    viewContainer: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+    },
+    activityNameContainer: {
+        flex: 1,
+        marginRight: 12,
+    },
+    playButton: {
+        backgroundColor: "#4CAF50",
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 6,
+        marginRight: 8,
+    },
+    playButtonText: {
+        color: "#FFFFFF",
+        fontSize: 14,
+        fontWeight: "600",
+    },
+    stopButton: {
+        backgroundColor: "#F44336",
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 6,
+        marginRight: 8,
+    },
+    stopButtonText: {
+        color: "#FFFFFF",
+        fontSize: 14,
+        fontWeight: "600",
+    },
+    deleteButton: {
+        backgroundColor: "#F44336",
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 6,
+    },
+    deleteButtonText: {
+        color: "#FFFFFF",
+        fontSize: 14,
+        fontWeight: "600",
+    },
+    navigationContainer: {
+        paddingHorizontal: 24,
+        paddingVertical: 20,
+        gap: 12,
+    },
+    navButton: {
+        backgroundColor: "#2196F3",
+        paddingVertical: 14,
+        paddingHorizontal: 16,
+        borderRadius: 12,
+        alignItems: "center",
+    },
+    navButtonText: {
+        color: "#FFFFFF",
+        fontSize: 15,
+        fontWeight: "600",
+    },
 });

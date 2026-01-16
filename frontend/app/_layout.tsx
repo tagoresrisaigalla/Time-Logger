@@ -8,6 +8,7 @@ export default function RootLayout() {
             <TimerProvider>
                 <Stack screenOptions={{ headerShown: false }}>
                     <Stack.Screen name="index" />
+                    <Stack.Screen name="timer" />
                     <Stack.Screen name="weekly" />
                     <Stack.Screen name="monthly" />
                 </Stack>

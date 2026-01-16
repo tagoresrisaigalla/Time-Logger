@@ -2,6 +2,7 @@ import { Text, View, StyleSheet, TouchableOpacity, ScrollView, TextInput } from 
 import { useState, useEffect } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
+import Footer from "../components/Footer";
 
 interface TimeEntry {
     activityName: string;
@@ -162,87 +163,85 @@ export default function Weekly() {
     };
 
     return (
-        <ScrollView style={styles.container}>
-            <View style={styles.content}>
-                <Text style={styles.title}>Weekly Summary</Text>
+        <>
+            <ScrollView style={styles.container}>
+                <View style={styles.content}>
+                    <Text style={styles.title}>Weekly Summary</Text>
 
-                <View style={styles.weekNavigation}>
-                    <TouchableOpacity
-                        style={styles.navButton}
-                        onPress={navigateToPreviousWeek}
-                    >
-                        <Text style={styles.navButtonText}>← Previous</Text>
-                    </TouchableOpacity>
+                    <View style={styles.weekNavigation}>
+                        <TouchableOpacity
+                            style={styles.navButton}
+                            onPress={navigateToPreviousWeek}
+                        >
+                            <Text style={styles.navButtonText}>← Previous</Text>
+                        </TouchableOpacity>
 
-                    <Text style={styles.weekLabel}>
-                        {weekStartDate && formatWeekRange(weekStartDate)}
-                    </Text>
-
-                    <TouchableOpacity
-                        style={styles.navButton}
-                        onPress={navigateToNextWeek}
-                    >
-                        <Text style={styles.navButtonText}>Next →</Text>
-                    </TouchableOpacity>
-                </View>
-
-                <View style={styles.summarySection}>
-                    <Text style={styles.sectionTitle}>Week Statistics</Text>
-
-                    <View style={styles.statRow}>
-                        <Text style={styles.statLabel}>Total Time Logged:</Text>
-                        <Text style={styles.statValue}>
-                            {summary ? formatDuration(summary.totalMs) : "0m"}
+                        <Text style={styles.weekLabel}>
+                            {weekStartDate && formatWeekRange(weekStartDate)}
                         </Text>
+
+                        <TouchableOpacity
+                            style={styles.navButton}
+                            onPress={navigateToNextWeek}
+                        >
+                            <Text style={styles.navButtonText}>Next →</Text>
+                        </TouchableOpacity>
                     </View>
 
-                    <View style={styles.statRow}>
-                        <Text style={styles.statLabel}>Average Per Day:</Text>
-                        <Text style={styles.statValue}>
-                            {summary ? formatDuration(summary.avgPerDayMs) : "0m"}
-                        </Text>
+                    <View style={styles.summarySection}>
+                        <Text style={styles.sectionTitle}>Week Statistics</Text>
+
+                        <View style={styles.statRow}>
+                            <Text style={styles.statLabel}>Total Time Logged:</Text>
+                            <Text style={styles.statValue}>
+                                {summary ? formatDuration(summary.totalMs) : "0m"}
+                            </Text>
+                        </View>
+
+                        <View style={styles.statRow}>
+                            <Text style={styles.statLabel}>Average Per Day:</Text>
+                            <Text style={styles.statValue}>
+                                {summary ? formatDuration(summary.avgPerDayMs) : "0m"}
+                            </Text>
+                        </View>
                     </View>
+
+                    <View style={styles.summarySection}>
+                        <Text style={styles.sectionTitle}>Top 3 Categories</Text>
+
+                        {summary && summary.topCategories.length > 0 ? (
+                            summary.topCategories.map((category, index) => (
+                                <View key={index} style={styles.categoryRow}>
+                                    <Text style={styles.categoryName}>{category.name}</Text>
+                                    <Text style={styles.categoryDuration}>
+                                        {formatDuration(category.durationMs)}
+                                    </Text>
+                                </View>
+                            ))
+                        ) : (
+                            <Text style={styles.noDataText}>No data for this week</Text>
+                        )}
+                    </View>
+
+                    <View style={styles.summarySection}>
+                        <Text style={styles.sectionTitle}>Weekly Reflection</Text>
+                        <TextInput
+                            style={styles.reflectionInput}
+                            placeholder="What went well this week? What wasted your time?"
+                            placeholderTextColor="#999999"
+                            value={reflection}
+                            onChangeText={setReflection}
+                            multiline
+                            numberOfLines={6}
+                            textAlignVertical="top"
+                        />
+                    </View>
+
+
                 </View>
-
-                <View style={styles.summarySection}>
-                    <Text style={styles.sectionTitle}>Top 3 Categories</Text>
-
-                    {summary && summary.topCategories.length > 0 ? (
-                        summary.topCategories.map((category, index) => (
-                            <View key={index} style={styles.categoryRow}>
-                                <Text style={styles.categoryName}>{category.name}</Text>
-                                <Text style={styles.categoryDuration}>
-                                    {formatDuration(category.durationMs)}
-                                </Text>
-                            </View>
-                        ))
-                    ) : (
-                        <Text style={styles.noDataText}>No data for this week</Text>
-                    )}
-                </View>
-
-                <View style={styles.summarySection}>
-                    <Text style={styles.sectionTitle}>Weekly Reflection</Text>
-                    <TextInput
-                        style={styles.reflectionInput}
-                        placeholder="What went well this week? What wasted your time?"
-                        placeholderTextColor="#999999"
-                        value={reflection}
-                        onChangeText={setReflection}
-                        multiline
-                        numberOfLines={6}
-                        textAlignVertical="top"
-                    />
-                </View>
-
-                <TouchableOpacity
-                    style={styles.backButton}
-                    onPress={() => router.back()}
-                >
-                    <Text style={styles.backButtonText}>Back to Daily View</Text>
-                </TouchableOpacity>
-            </View>
-        </ScrollView>
+            </ScrollView >
+            <Footer />
+        </>
     );
 }
 
