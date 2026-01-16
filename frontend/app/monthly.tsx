@@ -9,6 +9,7 @@ interface TimeEntry {
     endTime: string;
     duration: string;
     durationMs: number;
+    activityId?: string | null;
 }
 
 interface MonthlySummary {

@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import { useTimer } from "../context/TimerContext";
+import { useActivity } from "../context/ActivityContext";
 
 
 interface TimeEntry {
@@ -11,14 +12,17 @@ interface TimeEntry {
   endTime: string;
   duration: string;
   durationMs: number;
+  activityId?: string | null;
 }
 
 export default function Index() {
   const router = useRouter();
   const { activityName, setActivityName, startTime, setStartTime, isRunning, setIsRunning } = useTimer();
+  const { activities } = useActivity();
   const [todayEntries, setTodayEntries] = useState<TimeEntry[]>([]);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editedName, setEditedName] = useState("");
+  const [selectedActivityId, setSelectedActivityId] = useState<string | null>(null);
 
   // Function to load today's entries
   const loadTodayEntries = async () => {
@@ -311,6 +315,7 @@ export default function Index() {
     const now = Date.now();
     setStartTime(now);
     setIsRunning(true);
+    setSelectedActivityId(null);
   };
 
 
@@ -330,6 +335,7 @@ export default function Index() {
       endTime: new Date(endTime).toISOString(),
       duration: `${durationMinutes}m ${durationSeconds}s`,
       durationMs: durationMs,
+      activityId: selectedActivityId,
     };
 
     try {
@@ -367,6 +373,33 @@ export default function Index() {
       >
         <View style={styles.content}>
           <Text style={styles.title}>Time Logger</Text>
+
+          <View style={styles.activitySelector}>
+            <Text style={styles.selectorLabel}>Select Activity (Optional):</Text>
+            <View style={styles.activityOptions}>
+              <TouchableOpacity
+                style={[
+                  styles.activityOption,
+                  selectedActivityId === null && styles.activityOptionSelected
+                ]}
+                onPress={() => setSelectedActivityId(null)}
+              >
+                <Text style={styles.activityOptionText}>No Activity</Text>
+              </TouchableOpacity>
+              {activities.map((activity) => (
+                <TouchableOpacity
+                  key={activity.id}
+                  style={[
+                    styles.activityOption,
+                    selectedActivityId === activity.id && styles.activityOptionSelected
+                  ]}
+                  onPress={() => setSelectedActivityId(activity.id)}
+                >
+                  <Text style={styles.activityOptionText}>{activity.name}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
 
           <TextInput
             style={styles.input}
@@ -423,53 +456,64 @@ export default function Index() {
           <View style={styles.listContainer}>
             <Text style={styles.listTitle}>Today's Activities</Text>
 
-            {todayEntries.map((entry, index) => (
-              <View key={index} style={styles.entryItem}>
-                {editingIndex === index ? (
-                  // Edit Mode
-                  <View style={styles.editContainer}>
-                    <TextInput
-                      style={styles.editInput}
-                      value={editedName}
-                      onChangeText={setEditedName}
-                      placeholder="Activity name"
-                      placeholderTextColor="#999999"
-                    />
-                    <View style={styles.editButtonContainer}>
-                      <TouchableOpacity
-                        style={[styles.editButton, styles.saveButton]}
-                        onPress={handleSaveEdit}
-                      >
-                        <Text style={styles.editButtonText}>Save</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[styles.editButton, styles.cancelButton]}
-                        onPress={handleCancelEdit}
-                      >
-                        <Text style={styles.editButtonText}>Cancel</Text>
-                      </TouchableOpacity>
+            {todayEntries.map((entry, index) => {
+              const resolvedActivityName = entry.activityId
+                ? (activities.find(a => a.id === entry.activityId)?.name || "(Deleted Activity)")
+                : entry.activityId === null
+                  ? "No Activity"
+                  : entry.activityName;
+
+              return (
+                <View key={index} style={styles.entryItem}>
+                  {editingIndex === index ? (
+                    // Edit Mode
+                    <View style={styles.editContainer}>
+                      <TextInput
+                        style={styles.editInput}
+                        value={editedName}
+                        onChangeText={setEditedName}
+                        placeholder="Activity name"
+                        placeholderTextColor="#999999"
+                      />
+                      <View style={styles.editButtonContainer}>
+                        <TouchableOpacity
+                          style={[styles.editButton, styles.saveButton]}
+                          onPress={handleSaveEdit}
+                        >
+                          <Text style={styles.editButtonText}>Save</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.editButton, styles.cancelButton]}
+                          onPress={handleCancelEdit}
+                        >
+                          <Text style={styles.editButtonText}>Cancel</Text>
+                        </TouchableOpacity>
+                      </View>
                     </View>
-                  </View>
-                ) : (
-                  // View Mode
-                  <>
-                    <TouchableOpacity
-                      style={styles.entryContent}
-                      onPress={() => handleEdit(index)}
-                    >
-                      <Text style={styles.entryName}>{entry.activityName}</Text>
-                      <Text style={styles.entryDuration}>{entry.duration}</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.deleteButton}
-                      onPress={() => handleDelete(index)}
-                    >
-                      <Text style={styles.deleteButtonText}>Delete</Text>
-                    </TouchableOpacity>
-                  </>
-                )}
-              </View>
-            ))}
+                  ) : (
+                    // View Mode
+                    <>
+                      <TouchableOpacity
+                        style={styles.entryContent}
+                        onPress={() => handleEdit(index)}
+                      >
+                        <View>
+                          <Text style={styles.entryActivityLabel}>{resolvedActivityName}</Text>
+                          <Text style={styles.entryName}>{entry.activityName}</Text>
+                        </View>
+                        <Text style={styles.entryDuration}>{entry.duration}</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.deleteButton}
+                        onPress={() => handleDelete(index)}
+                      >
+                        <Text style={styles.deleteButtonText}>Delete</Text>
+                      </TouchableOpacity>
+                    </>
+                  )}
+                </View>
+              );
+            })}
           </View>
         )}
 
@@ -596,6 +640,11 @@ const styles = StyleSheet.create({
     flex: 1,
     marginRight: 16,
   },
+  entryActivityLabel: {
+    fontSize: 12,
+    color: "#666666",
+    marginBottom: 4,
+  },
   entryDuration: {
     fontSize: 16,
     fontWeight: "600",
@@ -713,5 +762,33 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 15,
     fontWeight: "600",
+  },
+  activitySelector: {
+    width: "100%",
+    marginBottom: 24,
+  },
+  selectorLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#000000",
+    marginBottom: 12,
+  },
+  activityOptions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  activityOption: {
+    backgroundColor: "#E0E0E0",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  activityOptionSelected: {
+    backgroundColor: "#4CAF50",
+  },
+  activityOptionText: {
+    fontSize: 14,
+    color: "#000000",
   },
 });
