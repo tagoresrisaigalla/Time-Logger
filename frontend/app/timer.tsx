@@ -43,6 +43,28 @@ const formatDateHeading = (dateKey: string): string => {
   return `${dayOfWeek}, ${dayOfMonth} ${month} ${year}`;
 };
 
+const formatTime = (timestamp: string): string => {
+  const date = new Date(timestamp);
+  let hours = date.getHours();
+  const minutes = date.getMinutes();
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12;
+  hours = hours ? hours : 12;
+  const minutesStr = minutes < 10 ? '0' + minutes : minutes;
+  return `${hours}:${minutesStr} ${ampm}`;
+};
+
+const formatDurationDisplay = (durationMs: number): string => {
+  const totalMinutes = Math.floor(durationMs / 60000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  if (hours > 0) {
+    return `${hours} h ${minutes} min`;
+  }
+  return `${minutes} min`;
+};
+
 const groupLogsByDate = (logs: TimeEntry[]): Record<string, TimeEntry[]> => {
   const grouped: Record<string, TimeEntry[]> = {};
 
@@ -488,8 +510,11 @@ export default function Index() {
                               <View>
                                 <Text style={styles.entryActivityLabel}>{resolvedActivityName}</Text>
                                 <Text style={styles.entryName}>{entry.activityName}</Text>
+                                <Text style={styles.entryTime}>
+                                  {formatTime(entry.startTime)} – {formatTime(entry.endTime)}
+                                </Text>
                               </View>
-                              <Text style={styles.entryDuration}>{entry.duration}</Text>
+                              <Text style={styles.entryDuration}>{formatDurationDisplay(entry.durationMs)}</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
                               style={styles.deleteButton}
@@ -621,11 +646,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 16,
+    paddingVertical: 14,
     paddingHorizontal: 16,
     backgroundColor: "#F5F5F5",
     borderRadius: 8,
-    marginBottom: 12,
+    marginBottom: 10,
   },
   entryContent: {
     flex: 1,
@@ -640,10 +665,15 @@ const styles = StyleSheet.create({
     flex: 1,
     marginRight: 16,
   },
+  entryTime: {
+    fontSize: 12,
+    color: "#999999",
+    marginTop: 2,
+  },
   entryActivityLabel: {
     fontSize: 12,
     color: "#666666",
-    marginBottom: 4,
+    marginBottom: 2,
   },
   entryDuration: {
     fontSize: 16,
