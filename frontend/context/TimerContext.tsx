@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode } from "react";
+import React, { createContext, useContext, useState, ReactNode, useMemo } from "react";
 
 interface TimerContextType {
     activityName: string;
@@ -9,6 +9,7 @@ interface TimerContextType {
     setIsRunning: (running: boolean) => void;
     activeActivityId: string | null;
     setActiveActivityId: (id: string | null) => void;
+    elapsedMs: number;
 }
 
 const TimerContext = createContext<TimerContextType | undefined>(undefined);
@@ -18,6 +19,17 @@ export function TimerProvider({ children }: { children: ReactNode }) {
     const [startTime, setStartTime] = useState<number | null>(null);
     const [isRunning, setIsRunning] = useState(false);
     const [activeActivityId, setActiveActivityId] = useState<string | null>(null);
+    const [, forceUpdate] = useState(0);
+    const elapsedMs = isRunning && startTime ? Date.now() - startTime : 0;
+
+
+    React.useEffect(() => {
+        if (!isRunning) return;
+        const interval = setInterval(() => {
+            forceUpdate(prev => prev + 1);
+        }, 100);
+        return () => clearInterval(interval);
+    }, [isRunning]);
 
     return (
         <TimerContext.Provider
@@ -30,6 +42,7 @@ export function TimerProvider({ children }: { children: ReactNode }) {
                 setIsRunning,
                 activeActivityId,
                 setActiveActivityId,
+                elapsedMs,
             }}
         >
             {children}

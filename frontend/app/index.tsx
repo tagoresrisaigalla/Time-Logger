@@ -1,5 +1,5 @@
 import { Text, View, StyleSheet, FlatList, TextInput, TouchableOpacity } from "react-native";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useActivity } from "../context/ActivityContext";
 import { useTimer } from "../context/TimerContext";
@@ -9,10 +9,31 @@ import Footer from "../components/Footer";
 export default function Activities() {
     const router = useRouter();
     const { activities, addActivity, renameActivity, deleteActivity } = useActivity();
-    const { isRunning, setIsRunning, setStartTime, setActiveActivityId, setActivityName, activeActivityId, startTime, activityName } = useTimer();
+    const { isRunning, setIsRunning, setStartTime, setActiveActivityId, setActivityName, activeActivityId, startTime, activityName, elapsedMs } = useTimer();
     const [newActivityName, setNewActivityName] = useState("");
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editedName, setEditedName] = useState("");
+    const [, forceUpdate] = useState(0);
+
+    useEffect(() => {
+        if (!isRunning) return;
+        const interval = setInterval(() => {
+            forceUpdate(prev => prev + 1);
+        }, 1000);
+        return () => clearInterval(interval);
+    }, [isRunning]);
+
+    const formatElapsedTime = (ms: number): string => {
+        const totalSeconds = Math.floor(ms / 1000);
+        const hours = Math.floor(totalSeconds / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+        const seconds = totalSeconds % 60;
+
+        if (hours > 0) {
+            return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        }
+        return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    };
 
     const handleAddActivity = () => {
         const trimmedName = newActivityName.trim();
@@ -188,12 +209,15 @@ export default function Activities() {
                                     <Text style={styles.activityName}>{item.name}</Text>
                                 </TouchableOpacity>
                                 {activeActivityId === item.id ? (
-                                    <TouchableOpacity
-                                        style={styles.stopButton}
-                                        onPress={handleStopActivity}
-                                    >
-                                        <Text style={styles.stopButtonText}>⏹</Text>
-                                    </TouchableOpacity>
+                                    <>
+                                        <Text style={styles.elapsedTime}>{formatElapsedTime(elapsedMs)}</Text>
+                                        <TouchableOpacity
+                                            style={styles.stopButton}
+                                            onPress={handleStopActivity}
+                                        >
+                                            <Text style={styles.stopButtonText}>⏹</Text>
+                                        </TouchableOpacity>
+                                    </>
                                 ) : (
                                     <TouchableOpacity
                                         style={styles.playButton}
@@ -353,6 +377,14 @@ const styles = StyleSheet.create({
         color: "#FFFFFF",
         fontSize: 14,
         fontWeight: "600",
+    },
+    elapsedTime: {
+        color: "#333333",
+        fontSize: 16,
+        fontWeight: "600",
+        marginRight: 12,
+        minWidth: 60,
+        textAlign: "right",
     },
     navigationContainer: {
         paddingHorizontal: 24,
