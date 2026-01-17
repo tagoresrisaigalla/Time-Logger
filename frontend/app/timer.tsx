@@ -16,6 +16,53 @@ interface TimeEntry {
   activityId?: string | null;
 }
 
+const getDateKey = (startTime: string): string => {
+  return new Date(startTime).toISOString().split('T')[0];
+};
+
+const formatDateHeading = (dateKey: string): string => {
+  const today = new Date().toISOString().split('T')[0];
+  const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+
+  if (dateKey === today) {
+    return "Today";
+  }
+  if (dateKey === yesterday) {
+    return "Yesterday";
+  }
+
+  const date = new Date(dateKey);
+  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+  const dayOfWeek = dayNames[date.getDay()];
+  const dayOfMonth = date.getDate();
+  const month = monthNames[date.getMonth()];
+  const year = date.getFullYear().toString().slice(-2);
+
+  return `${dayOfWeek}, ${dayOfMonth} ${month} ${year}`;
+};
+
+const groupLogsByDate = (logs: TimeEntry[]): Record<string, TimeEntry[]> => {
+  const grouped: Record<string, TimeEntry[]> = {};
+
+  logs.forEach(log => {
+    const dateKey = getDateKey(log.startTime);
+    if (!grouped[dateKey]) {
+      grouped[dateKey] = [];
+    }
+    grouped[dateKey].push(log);
+  });
+
+  Object.keys(grouped).forEach(dateKey => {
+    grouped[dateKey].sort((a, b) =>
+      new Date(b.startTime).getTime() - new Date(a.startTime).getTime()
+    );
+  });
+
+  return grouped;
+};
+
 export default function Index() {
   const router = useRouter();
   const { activityName, setActivityName, startTime, setStartTime, isRunning, setIsRunning, setActiveActivityId } = useTimer();
@@ -32,16 +79,16 @@ export default function Index() {
       if (existingData) {
         const allEntries: TimeEntry[] = JSON.parse(existingData);
 
-        // Get today's date string (YYYY-MM-DD)
-        const today = new Date().toISOString().split('T')[0];
+        // Get cutoff date (14 days ago)
+        const cutoffDate = new Date(Date.now() - 14 * 86400000).toISOString().split('T')[0];
 
-        // Filter entries from today only
-        const todayOnly = allEntries.filter((entry) => {
+        // Filter entries from last 14 days
+        const recentEntries = allEntries.filter((entry) => {
           const entryDate = new Date(entry.startTime).toISOString().split('T')[0];
-          return entryDate === today;
+          return entryDate >= cutoffDate;
         });
 
-        setTodayEntries(todayOnly);
+        setTodayEntries(recentEntries);
       }
     } catch (error) {
       console.error("Error loading entries:", error);
@@ -55,16 +102,22 @@ export default function Index() {
 
   // Calculate daily summary
   const calculateDailySummary = () => {
-    if (todayEntries.length === 0) {
+    const today = new Date().toISOString().split('T')[0];
+    const todayOnly = todayEntries.filter((entry) => {
+      const entryDate = new Date(entry.startTime).toISOString().split('T')[0];
+      return entryDate === today;
+    });
+
+    if (todayOnly.length === 0) {
       return null;
     }
 
     // Calculate total time in milliseconds
-    const totalMs = todayEntries.reduce((sum, entry) => sum + entry.durationMs, 0);
+    const totalMs = todayOnly.reduce((sum, entry) => sum + entry.durationMs, 0);
 
     // Group by activity name
     const activityGroups: { [key: string]: number } = {};
-    todayEntries.forEach((entry) => {
+    todayOnly.forEach((entry) => {
       if (activityGroups[entry.activityName]) {
         activityGroups[entry.activityName] += entry.durationMs;
       } else {
@@ -379,70 +432,81 @@ export default function Index() {
         </View>
 
         {/* Today's Activities List */}
-        {todayEntries.length > 0 && (
-          <View style={styles.listContainer}>
-            <Text style={styles.listTitle}>Today's Activities</Text>
+        {todayEntries.length > 0 && (() => {
+          const groupedLogs = groupLogsByDate(todayEntries);
+          const sortedDates = Object.keys(groupedLogs).sort((a, b) => b.localeCompare(a));
 
-            {[...todayEntries].reverse().map((entry, index) => {
-              const resolvedActivityName = entry.activityId
-                ? (activities.find(a => a.id === entry.activityId)?.name || "(Deleted Activity)")
-                : entry.activityId === null
-                  ? "No Activity"
-                  : entry.activityName;
+          return (
+            <View style={styles.listContainer}>
+              <Text style={styles.listTitle}>Today's Activities</Text>
 
-              return (
-                <View key={index} style={styles.entryItem}>
-                  {editingIndex === index ? (
-                    // Edit Mode
-                    <View style={styles.editContainer}>
-                      <TextInput
-                        style={styles.editInput}
-                        value={editedName}
-                        onChangeText={setEditedName}
-                        placeholder="Activity name"
-                        placeholderTextColor="#999999"
-                      />
-                      <View style={styles.editButtonContainer}>
-                        <TouchableOpacity
-                          style={[styles.editButton, styles.saveButton]}
-                          onPress={handleSaveEdit}
-                        >
-                          <Text style={styles.editButtonText}>Save</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={[styles.editButton, styles.cancelButton]}
-                          onPress={handleCancelEdit}
-                        >
-                          <Text style={styles.editButtonText}>Cancel</Text>
-                        </TouchableOpacity>
+              {sortedDates.map((dateKey) => (
+                <View key={dateKey}>
+                  <Text style={styles.dateHeading}>{formatDateHeading(dateKey)}</Text>
+
+                  {groupedLogs[dateKey].map((entry, index) => {
+                    const resolvedActivityName = entry.activityId
+                      ? (activities.find(a => a.id === entry.activityId)?.name || "(Deleted Activity)")
+                      : entry.activityId === null
+                        ? "No Activity"
+                        : entry.activityName;
+
+                    return (
+                      <View key={index} style={styles.entryItem}>
+                        {editingIndex === index ? (
+                          // Edit Mode
+                          <View style={styles.editContainer}>
+                            <TextInput
+                              style={styles.editInput}
+                              value={editedName}
+                              onChangeText={setEditedName}
+                              placeholder="Activity name"
+                              placeholderTextColor="#999999"
+                            />
+                            <View style={styles.editButtonContainer}>
+                              <TouchableOpacity
+                                style={[styles.editButton, styles.saveButton]}
+                                onPress={handleSaveEdit}
+                              >
+                                <Text style={styles.editButtonText}>Save</Text>
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                style={[styles.editButton, styles.cancelButton]}
+                                onPress={handleCancelEdit}
+                              >
+                                <Text style={styles.editButtonText}>Cancel</Text>
+                              </TouchableOpacity>
+                            </View>
+                          </View>
+                        ) : (
+                          // View Mode
+                          <>
+                            <TouchableOpacity
+                              style={styles.entryContent}
+                              onPress={() => handleEdit(index)}
+                            >
+                              <View>
+                                <Text style={styles.entryActivityLabel}>{resolvedActivityName}</Text>
+                                <Text style={styles.entryName}>{entry.activityName}</Text>
+                              </View>
+                              <Text style={styles.entryDuration}>{entry.duration}</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={styles.deleteButton}
+                              onPress={() => handleDelete(index)}
+                            >
+                              <Text style={styles.deleteButtonText}>Delete</Text>
+                            </TouchableOpacity>
+                          </>
+                        )}
                       </View>
-                    </View>
-                  ) : (
-                    // View Mode
-                    <>
-                      <TouchableOpacity
-                        style={styles.entryContent}
-                        onPress={() => handleEdit(index)}
-                      >
-                        <View>
-                          <Text style={styles.entryActivityLabel}>{resolvedActivityName}</Text>
-                          <Text style={styles.entryName}>{entry.activityName}</Text>
-                        </View>
-                        <Text style={styles.entryDuration}>{entry.duration}</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.deleteButton}
-                        onPress={() => handleDelete(index)}
-                      >
-                        <Text style={styles.deleteButtonText}>Delete</Text>
-                      </TouchableOpacity>
-                    </>
-                  )}
+                    );
+                  })}
                 </View>
-              );
-            })}
-          </View>
-        )}
+              ))}
+            </View>
+          );
+        })()}
 
         {/* Daily Summary Section */}
         {todayEntries.length > 0 && (() => {
@@ -544,6 +608,14 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#000000",
     marginBottom: 16,
+  },
+  dateHeading: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#666666",
+    marginTop: 16,
+    marginBottom: 12,
+    paddingLeft: 4,
   },
   entryItem: {
     flexDirection: "row",
