@@ -1,4 +1,4 @@
-import { Text, View, StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Keyboard, ScrollView, Alert } from "react-native";
+import { Text, View, StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Keyboard, ScrollView, Alert, Modal } from "react-native";
 import { useState, useEffect } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
@@ -93,6 +93,11 @@ export default function Index() {
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editedName, setEditedName] = useState("");
   const [selectedActivityId, setSelectedActivityId] = useState<string | null>(null);
+  const [selectedLog, setSelectedLog] = useState<TimeEntry | null>(null);
+  const [editingActivityId, setEditingActivityId] = useState<string | null>(null);
+  const [editingTime, setEditingTime] = useState(false);
+  const [editedStartTime, setEditedStartTime] = useState("");
+  const [editedEndTime, setEditedEndTime] = useState("");
 
   // Function to load today's entries
   const loadTodayEntries = async () => {
@@ -439,6 +444,152 @@ export default function Index() {
     }
   };
 
+  const handleSaveActivityChange = async () => {
+    if (!selectedLog || !editingActivityId) return;
+
+    try {
+      const existingData = await AsyncStorage.getItem("timeEntries");
+      if (existingData) {
+        const allEntries: TimeEntry[] = JSON.parse(existingData);
+
+        const globalIndex = allEntries.findIndex(
+          (e) =>
+            e.startTime === selectedLog.startTime &&
+            e.endTime === selectedLog.endTime &&
+            e.durationMs === selectedLog.durationMs
+        );
+
+        if (globalIndex !== -1) {
+          const selectedActivity = activities.find(a => a.id === editingActivityId);
+          allEntries[globalIndex].activityId = editingActivityId;
+          allEntries[globalIndex].activityName = selectedActivity?.name || allEntries[globalIndex].activityName;
+
+          await AsyncStorage.setItem("timeEntries", JSON.stringify(allEntries));
+          await loadTodayEntries();
+          setSelectedLog(null);
+          setEditingActivityId(null);
+        }
+      }
+    } catch (error) {
+      console.error("Error updating activity:", error);
+    }
+  };
+
+  const parseTimeInput = (timeStr: string, baseDate: Date): Date | null => {
+    const match = timeStr.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
+    if (!match) return null;
+
+    let hours = parseInt(match[1]);
+    const minutes = parseInt(match[2]);
+    const ampm = match[3]?.toUpperCase();
+
+    if (ampm === 'PM' && hours !== 12) hours += 12;
+    if (ampm === 'AM' && hours === 12) hours = 0;
+
+    if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null;
+
+    const result = new Date(baseDate);
+    result.setHours(hours, minutes, 0, 0);
+    return result;
+  };
+
+  const handleSaveTimeChange = async () => {
+    if (!selectedLog) return;
+
+    const originalStart = new Date(selectedLog.startTime);
+    const originalEnd = new Date(selectedLog.endTime);
+
+    const newStart = parseTimeInput(editedStartTime, originalStart);
+    const newEnd = parseTimeInput(editedEndTime, originalEnd);
+
+    if (!newStart || !newEnd) {
+      Alert.alert("Invalid Time", "Please enter time in format HH:MM AM/PM");
+      return;
+    }
+
+    if (newEnd <= newStart) {
+      Alert.alert("Invalid Time", "End time must be after start time");
+      return;
+    }
+
+    try {
+      const existingData = await AsyncStorage.getItem("timeEntries");
+      if (existingData) {
+        const allEntries: TimeEntry[] = JSON.parse(existingData);
+
+        const globalIndex = allEntries.findIndex(
+          (e) =>
+            e.startTime === selectedLog.startTime &&
+            e.endTime === selectedLog.endTime &&
+            e.durationMs === selectedLog.durationMs
+        );
+
+        if (globalIndex !== -1) {
+          const durationMs = newEnd.getTime() - newStart.getTime();
+          const durationMinutes = Math.floor(durationMs / 60000);
+          const durationSeconds = Math.floor((durationMs % 60000) / 1000);
+
+          allEntries[globalIndex].startTime = newStart.toISOString();
+          allEntries[globalIndex].endTime = newEnd.toISOString();
+          allEntries[globalIndex].durationMs = durationMs;
+          allEntries[globalIndex].duration = `${durationMinutes}m ${durationSeconds}s`;
+
+          await AsyncStorage.setItem("timeEntries", JSON.stringify(allEntries));
+          await loadTodayEntries();
+          setEditingTime(false);
+          setSelectedLog(null);
+        }
+      }
+    } catch (error) {
+      console.error("Error updating time:", error);
+    }
+  };
+
+  const handleDeleteLog = () => {
+    if (!selectedLog) return;
+
+    Alert.alert(
+      "Delete Log",
+      "Are you sure you want to delete this log entry?",
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const existingData = await AsyncStorage.getItem("timeEntries");
+              if (existingData) {
+                const allEntries: TimeEntry[] = JSON.parse(existingData);
+
+                const globalIndex = allEntries.findIndex(
+                  (e) =>
+                    e.startTime === selectedLog.startTime &&
+                    e.endTime === selectedLog.endTime &&
+                    e.durationMs === selectedLog.durationMs
+                );
+
+                if (globalIndex !== -1) {
+                  allEntries.splice(globalIndex, 1);
+                  await AsyncStorage.setItem("timeEntries", JSON.stringify(allEntries));
+                  await loadTodayEntries();
+                  setSelectedLog(null);
+                  setEditingActivityId(null);
+                  setEditingTime(false);
+                }
+              }
+            } catch (error) {
+              console.error("Error deleting log:", error);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -505,7 +656,7 @@ export default function Index() {
                           <>
                             <TouchableOpacity
                               style={styles.entryContent}
-                              onPress={() => handleEdit(index)}
+                              onPress={() => setSelectedLog(entry)}
                             >
                               <View>
                                 <Text style={styles.entryActivityLabel}>{resolvedActivityName}</Text>
@@ -555,6 +706,153 @@ export default function Index() {
         })()}
       </ScrollView>
       <Footer />
+
+      {/* Log Detail Modal */}
+      <Modal
+        visible={selectedLog !== null}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setSelectedLog(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Log Details</Text>
+
+            {selectedLog && (
+              <>
+                <View style={styles.modalRow}>
+                  <Text style={styles.modalLabel}>Activity:</Text>
+                  {editingActivityId !== null ? (
+                    <>
+                      <View style={styles.activitySelectorContainer}>
+                        {activities.map((activity) => (
+                          <TouchableOpacity
+                            key={activity.id}
+                            style={[
+                              styles.activityOptionModal,
+                              editingActivityId === activity.id && styles.activityOptionSelected
+                            ]}
+                            onPress={() => setEditingActivityId(activity.id)}
+                          >
+                            <Text style={[
+                              styles.activityOptionTextModal,
+                              editingActivityId === activity.id && styles.activityOptionTextSelected
+                            ]}>
+                              {activity.name}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                      <View style={styles.modalButtonRow}>
+                        <TouchableOpacity
+                          style={[styles.modalActionButton, styles.modalCancelButton]}
+                          onPress={() => setEditingActivityId(null)}
+                        >
+                          <Text style={styles.modalActionButtonText}>Cancel</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.modalActionButton, styles.modalSaveButton]}
+                          onPress={handleSaveActivityChange}
+                        >
+                          <Text style={styles.modalActionButtonText}>Save</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </>
+                  ) : (
+                    <TouchableOpacity
+                      onPress={() => setEditingActivityId(selectedLog.activityId || null)}
+                      style={styles.modalValueTouchable}
+                    >
+                      <Text style={styles.modalValue}>{selectedLog.activityName}</Text>
+                      <Text style={styles.modalEditHint}>Tap to change</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+
+                <View style={styles.modalRow}>
+                  <Text style={styles.modalLabel}>Start Time:</Text>
+                  {editingTime ? (
+                    <TextInput
+                      style={styles.timeInput}
+                      value={editedStartTime}
+                      onChangeText={setEditedStartTime}
+                      placeholder="HH:MM AM/PM"
+                      placeholderTextColor="#999999"
+                    />
+                  ) : (
+                    <TouchableOpacity
+                      onPress={() => {
+                        setEditingTime(true);
+                        setEditedStartTime(formatTime(selectedLog.startTime));
+                        setEditedEndTime(formatTime(selectedLog.endTime));
+                      }}
+                      style={styles.modalValueTouchable}
+                    >
+                      <Text style={styles.modalValue}>{formatTime(selectedLog.startTime)}</Text>
+                      <Text style={styles.modalEditHint}>Tap to change</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+
+                <View style={styles.modalRow}>
+                  <Text style={styles.modalLabel}>End Time:</Text>
+                  {editingTime ? (
+                    <TextInput
+                      style={styles.timeInput}
+                      value={editedEndTime}
+                      onChangeText={setEditedEndTime}
+                      placeholder="HH:MM AM/PM"
+                      placeholderTextColor="#999999"
+                    />
+                  ) : (
+                    <Text style={styles.modalValue}>{formatTime(selectedLog.endTime)}</Text>
+                  )}
+                </View>
+
+                {editingTime && (
+                  <View style={styles.modalButtonRow}>
+                    <TouchableOpacity
+                      style={[styles.modalActionButton, styles.modalCancelButton]}
+                      onPress={() => setEditingTime(false)}
+                    >
+                      <Text style={styles.modalActionButtonText}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.modalActionButton, styles.modalSaveButton]}
+                      onPress={handleSaveTimeChange}
+                    >
+                      <Text style={styles.modalActionButtonText}>Save</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                <View style={styles.modalRow}>
+                  <Text style={styles.modalLabel}>Duration:</Text>
+                  <Text style={styles.modalValue}>{formatDurationDisplay(selectedLog.durationMs)}</Text>
+                </View>
+              </>
+            )}
+
+            <TouchableOpacity
+              style={styles.modalDeleteButton}
+              onPress={handleDeleteLog}
+            >
+              <Text style={styles.modalDeleteButtonText}>Delete Log</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.modalCloseButton}
+              onPress={() => {
+                setSelectedLog(null);
+                setEditingActivityId(null);
+                setEditingTime(false);
+              }}
+            >
+              <Text style={styles.modalCloseButtonText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -820,5 +1118,126 @@ const styles = StyleSheet.create({
   activityOptionText: {
     fontSize: 14,
     color: "#000000",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalContent: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    padding: 24,
+    width: "85%",
+    maxWidth: 400,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "600",
+    color: "#000000",
+    marginBottom: 20,
+  },
+  modalRow: {
+    marginBottom: 16,
+  },
+  modalLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#666666",
+    marginBottom: 4,
+  },
+  modalValue: {
+    fontSize: 16,
+    color: "#000000",
+  },
+  modalCloseButton: {
+    backgroundColor: "#2196F3",
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    alignItems: "center",
+    marginTop: 8,
+  },
+  modalCloseButtonText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  timeInput: {
+    width: "100%",
+    height: 40,
+    borderWidth: 1,
+    borderColor: "#2196F3",
+    borderRadius: 6,
+    paddingHorizontal: 12,
+    fontSize: 16,
+    color: "#000000",
+    backgroundColor: "#FFFFFF",
+    marginTop: 4,
+  },
+  modalEditHint: {
+    fontSize: 12,
+    color: "#999999",
+    marginTop: 4,
+  },
+  modalValueTouchable: {
+    padding: 8,
+    backgroundColor: "#F5F5F5",
+    borderRadius: 6,
+  },
+  activitySelectorContainer: {
+    maxHeight: 200,
+    marginTop: 8,
+  },
+  activityOptionModal: {
+    backgroundColor: "#E0E0E0",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  activityOptionTextModal: {
+    fontSize: 14,
+    color: "#000000",
+  },
+  activityOptionTextSelected: {
+    color: "#FFFFFF",
+  },
+  modalButtonRow: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 16,
+  },
+  modalActionButton: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  modalCancelButton: {
+    backgroundColor: "#9E9E9E",
+  },
+  modalSaveButton: {
+    backgroundColor: "#4CAF50",
+  },
+  modalActionButtonText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  modalDeleteButton: {
+    backgroundColor: "#F44336",
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    alignItems: "center",
+    marginTop: 8,
+  },
+  modalDeleteButtonText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "600",
   },
 });
