@@ -175,7 +175,11 @@ export default function Activities() {
                 data={activities}
                 keyExtractor={(item) => item.id}
                 renderItem={({ item }) => (
-                    <View style={styles.activityItem}>
+                    <TouchableOpacity
+                        style={styles.activityItem}
+                        onPress={() => router.push({ pathname: `/activity/${item.id}` as any })}
+                        activeOpacity={0.7}
+                    >
                         {editingId === item.id ? (
                             <View style={styles.editContainer}>
                                 <TextInput
@@ -202,12 +206,9 @@ export default function Activities() {
                             </View>
                         ) : (
                             <View style={styles.viewContainer}>
-                                <TouchableOpacity
-                                    style={styles.activityNameContainer}
-                                    onPress={() => handleEdit(item.id, item.name)}
-                                >
+                                <View style={styles.activityNameContainer}>
                                     <Text style={styles.activityName}>{item.name}</Text>
-                                </TouchableOpacity>
+                                </View>
                                 {activeActivityId === item.id ? (
                                     <>
                                         <Text style={styles.elapsedTime}>{formatElapsedTime(elapsedMs)}</Text>
@@ -234,7 +235,7 @@ export default function Activities() {
                                 </TouchableOpacity>
                             </View>
                         )}
-                    </View>
+                    </TouchableOpacity>
                 )}
             />
 
