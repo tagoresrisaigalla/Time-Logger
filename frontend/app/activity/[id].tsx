@@ -1,8 +1,9 @@
-import { View, Text, StyleSheet, SectionList } from "react-native";
+import { View, Text, StyleSheet, SectionList, Dimensions } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import { useActivity } from "../../context/ActivityContext";
 import { useState, useEffect } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { LineChart } from "react-native-chart-kit";
 
 interface TimeEntry {
     activityName: string;
@@ -123,6 +124,35 @@ export default function ActivityDetail() {
             data: groupedByDate[date],
         }));
 
+    const rawChartData = Object.keys(groupedByDate)
+        .sort((a, b) => a.localeCompare(b))
+        .map(date => ({
+            date,
+            totalDuration: groupedByDate[date].reduce((sum, log) => sum + log.durationMs, 0),
+        }));
+
+    const chartData = (() => {
+        if (rawChartData.length === 0) return [];
+
+        const minDate = new Date(rawChartData[0].date);
+        const maxDate = new Date(rawChartData[rawChartData.length - 1].date);
+
+        const normalized = [];
+        const dataMap = new Map(rawChartData.map(item => [item.date, item.totalDuration]));
+
+        const currentDate = new Date(minDate);
+        while (currentDate <= maxDate) {
+            const dateKey = getDateKey(currentDate.toISOString());
+            normalized.push({
+                date: dateKey,
+                totalDuration: dataMap.get(dateKey) || 0,
+            });
+            currentDate.setDate(currentDate.getDate() + 1);
+        }
+
+        return normalized;
+    })();
+
     return (
         <View style={styles.container}>
             <Text style={styles.title}>{activity.name}</Text>
@@ -130,6 +160,42 @@ export default function ActivityDetail() {
                 <Text style={styles.emptyText}>No logs for this activity</Text>
             ) : (
                 <>
+                    {chartData.length > 0 && (
+                        <LineChart
+                            data={{
+                                labels: chartData.map(item => {
+                                    const [, , day] = item.date.split('-');
+                                    return day;
+                                }),
+                                datasets: [{
+                                    data: chartData.map(item => item.totalDuration / 60000),
+                                }],
+                            }}
+                            width={Dimensions.get('window').width - 48}
+                            height={220}
+                            chartConfig={{
+                                backgroundColor: '#ffffff',
+                                backgroundGradientFrom: '#ffffff',
+                                backgroundGradientTo: '#ffffff',
+                                decimalPlaces: 0,
+                                color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
+                                labelColor: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
+                                style: {
+                                    borderRadius: 16
+                                },
+                                propsForDots: {
+                                    r: "4",
+                                    strokeWidth: "2",
+                                    stroke: "#000000"
+                                }
+                            }}
+                            bezier
+                            style={{
+                                marginVertical: 8,
+                                borderRadius: 16
+                            }}
+                        />
+                    )}
                     <Text style={styles.totalText}>Total: {totalTime}</Text>
                     <SectionList
                         sections={sections}
