@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, FlatList } from "react-native";
+import { View, Text, StyleSheet, SectionList } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import { useActivity } from "../../context/ActivityContext";
 import { useState, useEffect } from "react";
@@ -35,6 +35,43 @@ const formatDurationDisplay = (durationMs: number): string => {
     return `${minutes} min`;
 };
 
+const getDateKey = (timestamp: string): string => {
+    const date = new Date(timestamp);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
+const formatDateLabel = (dateKey: string): string => {
+    const today = new Date();
+    const todayKey = getDateKey(today.toISOString());
+
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayKey = getDateKey(yesterday.toISOString());
+
+    if (dateKey === todayKey) {
+        return 'Today';
+    }
+    if (dateKey === yesterdayKey) {
+        return 'Yesterday';
+    }
+
+    const [year, month, day] = dateKey.split('-');
+    const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+    const weekday = date.toLocaleDateString('en-US', { weekday: 'short' });
+    const monthName = date.toLocaleDateString('en-US', { month: 'short' });
+    const yearShort = year.slice(2);
+
+    return `${weekday}, ${day} ${monthName} ${yearShort}`;
+};
+
+interface DateGroup {
+    date: string;
+    data: TimeEntry[];
+}
+
 export default function ActivityDetail() {
     const { id } = useLocalSearchParams();
     const { activities } = useActivity();
@@ -69,6 +106,23 @@ export default function ActivityDetail() {
     const totalMs = logs.reduce((sum, log) => sum + log.durationMs, 0);
     const totalTime = formatDurationDisplay(totalMs);
 
+    const groupedByDate = logs.reduce<Record<string, TimeEntry[]>>((acc, log) => {
+        const dateKey = getDateKey(log.startTime);
+        if (!acc[dateKey]) {
+            acc[dateKey] = [];
+        }
+        acc[dateKey].push(log);
+        return acc;
+    }, {});
+
+    const sections: DateGroup[] = Object.keys(groupedByDate)
+        .sort((a, b) => b.localeCompare(a))
+        .slice(0, 14)
+        .map(date => ({
+            date,
+            data: groupedByDate[date],
+        }));
+
     return (
         <View style={styles.container}>
             <Text style={styles.title}>{activity.name}</Text>
@@ -77,8 +131,8 @@ export default function ActivityDetail() {
             ) : (
                 <>
                     <Text style={styles.totalText}>Total: {totalTime}</Text>
-                    <FlatList
-                        data={logs}
+                    <SectionList
+                        sections={sections}
                         keyExtractor={(item, index) => `${item.startTime}-${index}`}
                         renderItem={({ item }) => (
                             <View style={styles.entryItem}>
@@ -92,6 +146,15 @@ export default function ActivityDetail() {
                                 </View>
                             </View>
                         )}
+                        renderSectionHeader={({ section }) => {
+                            const dayTotal = section.data.reduce((sum, log) => sum + log.durationMs, 0);
+                            return (
+                                <View>
+                                    <Text style={styles.dateHeader}>{formatDateLabel(section.date)}</Text>
+                                    <Text style={styles.dayTotal}>Total: {formatDurationDisplay(dayTotal)}</Text>
+                                </View>
+                            );
+                        }}
                     />
                 </>
             )}
@@ -150,5 +213,18 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontWeight: "600",
         color: "#666666",
+    },
+    dateHeader: {
+        fontSize: 14,
+        fontWeight: "600",
+        color: "#000000",
+        marginTop: 16,
+        marginBottom: 8,
+    },
+    dayTotal: {
+        fontSize: 12,
+        fontWeight: "500",
+        color: "#666666",
+        marginBottom: 8,
     },
 });
